@@ -6,6 +6,7 @@ dependencies = [
     "huggingface-hub>=1.33.0",
     "lerobot>=0.6.1",
     "numpy>=2.2.6",
+    "rerun-sdk>=0.40.0",
     "yourdfpy>=0.0.60",
 ]
 

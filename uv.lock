@@ -1039,6 +1039,7 @@ dependencies = [
     { name = "huggingface-hub" },
     { name = "lerobot" },
     { name = "numpy" },
+    { name = "rerun-sdk" },
     { name = "yourdfpy" },
 ]
 
@@ -1054,6 +1055,7 @@ requires-dist = [
     { name = "huggingface-hub", specifier = ">=1.33.0" },
     { name = "lerobot", specifier = ">=0.6.1" },
     { name = "numpy", specifier = ">=2.2.6" },
+    { name = "rerun-sdk", specifier = ">=0.40.0" },
     { name = "yourdfpy", specifier = ">=0.0.60" },
 ]
 
@@ -1080,6 +1082,21 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/da/9f/abfd2959e9261dd5217ca8551d4de211ca6ab26fe9b72cf44731ff6c4442/pure_eval-0.2.4.tar.gz", hash = "sha256:260c2774686e651b79f8b8e7fc9d80b3599ea6a66334b47d5f4abb69fc2c0ea1", size = 20563, upload-time = "2026-09-10T21:41:22.836Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6d/18/83376915176eb058cb86470eb7396388a13350b09a8f233a79303bbcbc5b/pure_eval-0.2.4-py3-none-any.whl", hash = "sha256:96cae060a313cfaad51bb761278bfb0e62dc0248d9315a81173752dc546cd37a", size = 11893, upload-time = "2026-09-10T21:41:21.532Z" },
+]
+
+[[package]]
+name = "pyarrow"
+version = "26.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/34/17c34cb38e5d940e38f0f0d9fdfa0e8a506676409ea9b85aff7e3079f831/pyarrow-26.0.0.tar.gz", hash = "sha256:0cccd36e00ea3afeb52ded61f2721ce71f604853d70c45365c58324eb773d6ae", size = 1239433, upload-time = "2026-10-09T08:26:25.315Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/60/6793778f2617cce469383dac0ba08c4f2401cf342df0c7b9ca53939d9b46/pyarrow-26.0.0-cp312-cp312-macosx_12_0_arm64.whl", hash = "sha256:90ddaf7c625307ad52f31a9b25c34fe5e4897c7529ee3481135822b2b6842ff1", size = 36333953, upload-time = "2026-10-09T08:14:00.387Z" },
+    { url = "https://files.pythonhosted.org/packages/db/81/f944cc63ce8a753e5fbff25de6d1d475ebd7fffdf9cf98c65130294fc896/pyarrow-26.0.0-cp312-cp312-macosx_12_0_x86_64.whl", hash = "sha256:ee341973f78a0b46e073d065e88e75026a9c584051e97f98a0d05d96c6bac7dd", size = 38688456, upload-time = "2026-10-09T08:14:04.344Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/2d/7e5c722fa5d5d9f3b75e62fe11694b34217664d4f05ac88031197166b277/pyarrow-26.0.0-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:01c863a18bd9c8412453dd0d92de6d0ee7b2b3d6fb079d9734a4b2a3c8bd4453", size = 50867603, upload-time = "2026-10-09T08:14:09.115Z" },
+    { url = "https://files.pythonhosted.org/packages/88/e4/9cd356d906e71bd79b0c3fc5c9a54e01a0020dcf14c152ccfbcb503c7298/pyarrow-26.0.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:6a628922ba20705fa964ca73e4ef959c2fb2f14b9bbec5589a6a1e68e6257c85", size = 53931932, upload-time = "2026-10-09T08:14:24.051Z" },
+    { url = "https://files.pythonhosted.org/packages/bb/e4/5bae3133b7fe04c24907a20f3bc1fba388cbbde659199e7b76445982047a/pyarrow-26.0.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:954d971b363b16ee41f89389a4053315dc71265f2ce5c2468eb0a910b1166268", size = 54444720, upload-time = "2026-10-09T08:14:31.214Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/b4/ee422493bb6dafdbef776cfe2c2a73106a1063a79bf4e78d1e5f51176885/pyarrow-26.0.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:5d5768d03426abe6526d5274adefa00abf00a7f81118c46e98b5a46390f5549e", size = 57388949, upload-time = "2026-10-09T08:14:38.964Z" },
+    { url = "https://files.pythonhosted.org/packages/54/3c/1783aab1dac28e175dcf26dfc7123725efc474caecaed91e8a34cb89cad0/pyarrow-26.0.0-cp312-cp312-win_amd64.whl", hash = "sha256:cc903e1069e9dd5e9dcf780324c0112e27e051e422ecfaff574fb33ed65d9160", size = 28567581, upload-time = "2026-10-09T08:14:44.279Z" },
 ]
 
 [[package]]
@@ -1209,6 +1226,25 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179abd6d00ebd70bff6273f37fb3e0cc209f48b39d00cbf/requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed", size = 142856, upload-time = "2026-05-14T19:25:27.735Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
+]
+
+[[package]]
+name = "rerun-sdk"
+version = "0.40.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "attrs" },
+    { name = "numpy" },
+    { name = "pillow" },
+    { name = "psutil" },
+    { name = "pyarrow" },
+    { name = "typing-extensions" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5e/ff/b515111db1c4526bdeb5cb4d5cdb28a5946da9d7d265e88aaf44ad4bbfee/rerun_sdk-0.40.0-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:9ed7000916646a73344cdb39bd68feefcb6dd9af76732f79323c6c0fa059c84a", size = 157457163, upload-time = "2026-10-21T09:57:07.654Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/c8/b7af124a2cd9763d769403f0dd78539c20930e5d116a03c15bfa6eba65b2/rerun_sdk-0.40.0-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:e07c468600039fa3ccceaa3d34ee5dc2a6482aa6f1798f5258553f81cdb0baac", size = 168757608, upload-time = "2026-10-21T09:57:15.137Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/1e/5b41f4a223852e8114ded6e40eaf51eb74e7f41c7a9d72fe2f4bcb2b1e36/rerun_sdk-0.40.0-cp311-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:10c2ee62b42713632373f4f077fb5e11fdbb0a8b56ab52374ad873ed8d296d87", size = 174272187, upload-time = "2026-10-21T09:57:21.239Z" },
+    { url = "https://files.pythonhosted.org/packages/3d/68/03c9f43ed0e8ed336930740667cab7317f261fe8bd2c5fa8a3aac3da8142/rerun_sdk-0.40.0-cp311-abi3-win_amd64.whl", hash = "sha256:86094bc3e837dc778d6df808bba645ad199917ec9b7926a820ba01cfe10d9d0c", size = 150526954, upload-time = "2026-10-21T09:57:27.395Z" },
 ]
 
 [[package]]
