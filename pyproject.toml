@@ -4,7 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "huggingface-hub>=1.33.0",
-    "lerobot>=0.6.1",
+    "lerobot[feetech,hardware]>=0.6.1",
     "numpy>=2.2.6",
     "rerun-sdk>=0.40.0",
     "yourdfpy>=0.0.60",

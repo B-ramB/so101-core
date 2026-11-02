@@ -221,3 +221,4 @@ __marimo__/
 
 # ignore urdf files for automatica sync
 urdf/*
+calibration/*
