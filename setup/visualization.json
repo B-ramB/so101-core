@@ -1,0 +1,54 @@
+{
+    "_help": {
+        "wrist_camera": "Camera pose relative to the follower link `parent_link`. In gripper_link the gripper points along -Z. rpy_deg = mount rotation (roll, pitch, yaw about the link axes); the camera looks along its own +Z. roll_about_view_axis_deg rotates the camera (and image) around its viewing direction: use it to match the image's zero orientation to the wrist.",
+        "joints": "Mapping from the real arm to the URDF model, per joint: model = sign * real + offset, where sign = -1 when invert is true. Units: degrees, gripper in percent (0-100). Use offset to match the model's zero orientation (e.g. wrist_roll) to the real arm.",
+        "leader_model_offset_m": "Where the leader model is drawn relative to the follower model."
+    },
+    "wrist_camera": {
+        "parent_link": "gripper_link",
+        "xyz_m": [
+            0.0,
+            0.04,
+            -0.03
+        ],
+        "rpy_deg": [
+            180.0,
+            0.0,
+            0.0
+        ],
+        "roll_about_view_axis_deg": 0.0,
+        "fov_y_deg": 60.0,
+        "image_plane_distance_m": 0.08
+    },
+    "joints": {
+        "shoulder_pan": {
+            "offset": 0.0,
+            "invert": false
+        },
+        "shoulder_lift": {
+            "offset": 0.0,
+            "invert": false
+        },
+        "elbow_flex": {
+            "offset": 0.0,
+            "invert": false
+        },
+        "wrist_flex": {
+            "offset": 0.0,
+            "invert": false
+        },
+        "wrist_roll": {
+            "offset": -90.0,
+            "invert": false
+        },
+        "gripper": {
+            "offset": 0.0,
+            "invert": false
+        }
+    },
+    "leader_model_offset_m": [
+        0.0,
+        0.5,
+        0.0
+    ]
+}
