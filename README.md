@@ -71,27 +71,31 @@ uv run lerobot-calibrate \
 
 ## Tele-operate
 
-Use the command printed by `setup/setup_arms.py`. It looks like this:
+After running `setup/setup_arms.py`, start teleoperation with Rerun visualization using one command:
 
 ```bash
-uv run lerobot-teleoperate \
-    --robot.type=so101_follower \
-    --robot.port=/dev/ttyACM1 \
-    --robot.id=follower_arm_<date> \
-    --robot.calibration_dir=setup/calibration_files \
-    --robot.cameras="{ front: {type: opencv, index_or_path: /dev/video0, width: 640, height: 480, fps: 30}}" \
-    --teleop.type=so101_leader \
-    --teleop.port=/dev/ttyACM0 \
-    --teleop.id=leader_arm_<date> \
-    --teleop.calibration_dir=setup/calibration_files \
-    --display_data=true
+uv run src/teleoperate.py
 ```
 
+It reads `setup/arm_config.json` (ports, calibration files, camera) and opens Rerun with:
 
-## Rerun
+- the follower and leader URDF models following the real arms (when `urdf/` is present; get it with `setup/fetch_urdfs.sh`)
+- the wrist camera as a frustum on the follower gripper, with the live image projected into the 3D view
+- the joint positions of leader and follower as time series
 
-Visualize the urdf in rerun:
+Options: `--fps 60`, `--no-camera`, `--no-urdf`. Stop with `Ctrl+C`.
 
-```bash
-uv run src/urdf_visualizer.py
-```
+If an arm was replugged and its port changed, the script tells you to run `setup/setup_arms.py` again.
+
+### Aligning the camera and joints in Rerun
+
+How the models and the wrist camera are drawn is set in `setup/visualization.json` (created with defaults on the
+first run). **The file is reloaded while teleoperating**: edit, save, and Rerun updates within half a second.
+
+- `wrist_camera.roll_about_view_axis_deg`: rotates the camera (and its image) around its viewing direction. Use this
+  to match the camera's zero orientation to the wrist.
+- `wrist_camera.xyz_m` / `rpy_deg` / `parent_link`: where the camera is mounted (default on `gripper_link`).
+- `wrist_camera.fov_y_deg`: vertical field of view used for the projection.
+- `joints.<joint>.offset` / `invert`: maps the real arm to the URDF model (`model = ±real + offset`, degrees, gripper
+  in %). Use `joints.wrist_roll.offset` when the model's wrist zero differs from the real arm.
+- `leader_model_offset_m`: where the leader model is drawn next to the follower.
