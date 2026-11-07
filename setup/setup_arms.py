@@ -16,6 +16,7 @@ Run with:
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -28,6 +29,8 @@ SETUP_DIR = Path(__file__).resolve().parent
 CALIBRATION_DIR = SETUP_DIR / "calibration_files"
 CONFIG_PATH = SETUP_DIR / "arm_config.json"
 USB_CONFIG_DIR = SETUP_DIR / "usb_configs"
+VIS_EXAMPLE_PATH = SETUP_DIR / "visualization.example.json"
+VIS_CONFIG_PATH = SETUP_DIR / "visualization.local.json"
 
 LEADER_TYPE = "so101_leader"
 FOLLOWER_TYPE = "so101_follower"
@@ -387,6 +390,10 @@ def main() -> None:
     print(json.dumps(config, indent=4))
 
     cleanup_unused_files(leader_id, follower_id, today)
+
+    if not VIS_CONFIG_PATH.exists() and VIS_EXAMPLE_PATH.exists():
+        shutil.copyfile(VIS_EXAMPLE_PATH, VIS_CONFIG_PATH)
+        print(f"\nCreated {VIS_CONFIG_PATH.relative_to(SETUP_DIR.parent)} from {VIS_EXAMPLE_PATH.name}.")
 
     print("\nStart teleoperation with:\n")
     print(teleoperate_command(config))

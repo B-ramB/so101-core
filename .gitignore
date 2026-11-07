@@ -225,4 +225,4 @@ urdf/*
 setup/arm_config.json
 setup/calibration_files/
 setup/usb_configs/
-setup/visualization.json
+setup/visualization.local.json

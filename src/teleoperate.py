@@ -10,8 +10,8 @@ Rerun shows:
   - the wrist camera as a frustum attached to the follower gripper, with the live image projected in it
   - the joint positions (leader action vs. follower observation) as time series
 
-How the models and the camera are drawn is configured in setup/visualization.json (created with
-defaults on first run). The file is reloaded while running: edit, save, and Rerun updates.
+How the models and the camera are drawn is configured in setup/visualization.local.json (copied
+from setup/visualization.example.json on first run). The file is reloaded while running: edit, save, and Rerun updates.
 
 Run with:
     uv run src/teleoperate.py            # default 30 fps
@@ -22,6 +22,7 @@ import argparse
 import copy
 import json
 import math
+import shutil
 import sys
 import time
 import warnings
@@ -33,7 +34,8 @@ import rerun.blueprint as rrb
 ROOT = Path(__file__).resolve().parent.parent
 SETUP_DIR = ROOT / "setup"
 CONFIG_PATH = SETUP_DIR / "arm_config.json"
-VIS_CONFIG_PATH = SETUP_DIR / "visualization.json"
+VIS_EXAMPLE_PATH = SETUP_DIR / "visualization.example.json"
+VIS_CONFIG_PATH = SETUP_DIR / "visualization.local.json"
 URDF_DIR = ROOT / "urdf"
 FOLLOWER_URDF = URDF_DIR / "so101_new_calib.urdf"
 LEADER_URDF = URDF_DIR / "so101_leader_new_calib.urdf"
@@ -110,13 +112,17 @@ def merge_defaults(defaults: dict, user: dict) -> dict:
 
 
 class VisualizationConfig:
-    """setup/visualization.json, reloaded whenever the file changes."""
+    """setup/visualization.local.json, reloaded whenever the file changes."""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, example: Path = VIS_EXAMPLE_PATH):
         self.path = path
         if not path.exists():
-            path.write_text(json.dumps(DEFAULT_VIS_CONFIG, indent=4) + "\n")
-            print(f"Created {path.relative_to(ROOT)} with default visualization settings.")
+            if example.exists():
+                shutil.copyfile(example, path)
+                print(f"Created {path.relative_to(ROOT)} from {example.relative_to(ROOT)}.")
+            else:
+                path.write_text(json.dumps(DEFAULT_VIS_CONFIG, indent=4) + "\n")
+                print(f"Created {path.relative_to(ROOT)} with default visualization settings.")
         self._mtime = 0.0
         self._last_check = 0.0
         self.data = copy.deepcopy(DEFAULT_VIS_CONFIG)
@@ -305,7 +311,7 @@ class Visualizer:
         rr.send_blueprint(rrb.Blueprint(rrb.Horizontal(*views, column_shares=[2, 1][: len(views)])))
 
     def apply_config(self) -> None:
-        """(Re)log everything that depends on setup/visualization.json."""
+        """(Re)log everything that depends on setup/visualization.local.json."""
         if self.leader_model:
             self.leader_model.log_placement(self.vis.data["leader_model_offset_m"])
         if self.follower_model and self.camera_size:

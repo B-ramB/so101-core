@@ -89,8 +89,12 @@ If an arm was replugged and its port changed, the script tells you to run `setup
 
 ### Aligning the camera and joints in Rerun
 
-How the models and the wrist camera are drawn is set in `setup/visualization.json` (created with defaults on the
-first run). **The file is reloaded while teleoperating**: edit, save, and Rerun updates within half a second.
+How the models and the wrist camera are drawn is set in `setup/visualization.local.json`. This file is git-ignored
+and is copied from the tracked template `setup/visualization.example.json` on first setup (by `setup/setup_arms.py`,
+or by `src/teleoperate.py` if it is still missing). Edit the local file for your own setup; only change the example
+when the defaults for everyone should change. To start over, delete the local file and it is copied again.
+
+**The file is reloaded while teleoperating**: edit, save, and Rerun updates within half a second.
 
 - `wrist_camera.roll_about_view_axis_deg`: rotates the camera (and its image) around its viewing direction. Use this
   to match the camera's zero orientation to the wrist.
