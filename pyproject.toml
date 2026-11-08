@@ -15,6 +15,12 @@ so101-setup = "so101.cli.setup:run"
 so101-teleop = "so101.cli.teleop:main"
 so101-view-urdf = "so101.cli.view_urdf:main"
 so101-fetch-urdfs = "so101.cli.fetch_urdfs:main"
+so101-sim = "so101.cli.sim:main"
+
+[project.optional-dependencies]
+sim = [
+    "mujoco>=4.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -34,7 +40,7 @@ dev = [
 testpaths = ["tests"]
 addopts = "-m 'not hardware'"
 markers = [
-    "sim: needs the sim extra and the downloaded MuJoCo model",
+    "sim: needs the sim extra and the URDFs in so101_config/urdf",
     "hardware: needs the real arms (only runs with --hardware)",
 ]
 

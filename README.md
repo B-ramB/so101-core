@@ -10,6 +10,7 @@ leader and follower arms, built on [lerobot](https://github.com/huggingface/lero
 | `uv run so101-fetch-urdfs` | Download or update the SO-101 URDFs and meshes |
 | `uv run so101-view-urdf` | Show the URDF models in Rerun in the calibration mid stance, to align `visualization.json` (no arm needed) |
 | `uv run so101-teleop` | Teleoperate the follower with the leader, visualized in Rerun (`--no-rerun` to turn it off) |
+| `uv run --extra sim so101-sim` | Open the follower in the MuJoCo viewer with a box to pick up (see [docs/simulation.md](docs/simulation.md)) |
 
 ### Visualization with Rerun
 
@@ -44,7 +45,8 @@ so101_config/
 ├── calibration/        leader / follower calibration files
 ├── visualization.json  camera pose and joint offsets for the Rerun models
 ├── arm_config.json     ports, which calibration is used, camera
-└── usb_configs/        dated port / camera detection results
+├── usb_configs/        dated port / camera detection results
+└── mujoco/             MuJoCo model generated from the follower URDF (so101-sim)
 ```
 
 The folder is created with its own `.gitignore` (`*`), so none of these files are committed. To reuse a calibration in

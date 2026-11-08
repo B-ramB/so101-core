@@ -25,16 +25,16 @@ import `so101` from anything that runs before `conftest.py`.
 
 ## Markers
 
-| Marker     | Meaning                                              | Runs by default |
-|------------|------------------------------------------------------|-----------------|
-| (none)     | Pure logic, no hardware or downloads needed          | yes             |
-| `sim`      | Needs the `sim` extra and the downloaded MuJoCo model | yes             |
-| `hardware` | Needs the real arms connected                         | no              |
+| Marker     | Meaning                                                  | Runs by default |
+|------------|----------------------------------------------------------|-----------------|
+| (none)     | Pure logic, no hardware or downloads needed              | yes             |
+| `sim`      | Needs the `sim` extra and the URDFs (skipped otherwise)  | yes             |
+| `hardware` | Needs the real arms connected                            | no              |
 
 `hardware` tests are deselected via `addopts = "-m 'not hardware'"` in `pyproject.toml`. Useful selections:
 
 ```bash
-uv run pytest -m sim                 # only sim tests
-uv run pytest -m "not sim"           # skip sim tests (no model downloaded)
+uv run --extra sim pytest -m sim     # only sim tests
+uv run pytest -m "not sim"           # skip sim tests
 uv run pytest -m hardware            # run hardware tests (a later -m overrides the default)
 ```
