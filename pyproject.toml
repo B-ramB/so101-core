@@ -29,3 +29,14 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.17.2",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not hardware'"
+markers = [
+    "sim: needs the sim extra and the downloaded MuJoCo model",
+    "hardware: needs the real arms (only runs with --hardware)",
+]
+
+[tool.ruff]
+line-length = 120
