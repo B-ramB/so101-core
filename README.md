@@ -1,4 +1,4 @@
-# psychic-meme: SO-101 core package
+# SO-101 core 
 
 Installable Python package (`so101`, in `src/so101/`) to set up, calibrate, teleoperate and visualize the SO-101
 leader and follower arms, built on [lerobot](https://github.com/huggingface/lerobot) and
