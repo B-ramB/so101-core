@@ -6,7 +6,7 @@ from pathlib import Path
 import rerun as rr
 import rerun.blueprint as rrb
 
-from so101.conventions import CAMERA_NAME, JOINTS, gripper_percent_to_joint
+from so101.conventions import CAMERA_NAME, GRIPPER, JOINTS, JointPositions
 from so101.math3d import quat_multiply, rpy_to_quat_xyzw
 from so101.paths import FOLLOWER_URDF, LEADER_URDF
 from so101.viz.config import VisualizationConfig
@@ -27,6 +27,8 @@ class ArmModel:
         self.tree.log_urdf_to_recording()
         self.root_frame = f"{name}/{self.tree.root_link().name}"
         self.joints = {j.name: j for j in self.tree.joints() if j.joint_type in ("revolute", "continuous")}
+        gripper = self.joints[GRIPPER]  # the leader's gripper range differs from the follower's
+        self.gripper_limits = (gripper.limit_lower, gripper.limit_upper)
         self.log_placement([0.0, 0.0, 0.0])
 
     def log_placement(self, offset: list[float]) -> None:
@@ -37,19 +39,12 @@ class ArmModel:
             static=True,
         )
 
-    def joint_value(self, joint: str, value: float) -> float:
-        """lerobot position -> URDF joint value. Body joints are degrees, gripper is 0..100."""
-        value = self.vis.to_model_value(joint, value)
-        if joint == "gripper":
-            urdf_joint = self.joints[joint]
-            return gripper_percent_to_joint(value, urdf_joint.limit_lower, urdf_joint.limit_upper)
-        return math.radians(value)
-
     def log_positions(self, positions: dict[str, float]) -> None:
-        for joint, value in positions.items():
+        """Pose the model from lerobot positions: body joints in degrees, gripper in percent."""
+        q = JointPositions.from_degrees(positions, self.vis.joint_calibration(self.gripper_limits))
+        for joint, value in q.radians.items():
             if joint in self.joints:
-                transform = self.joints[joint].compute_transform(self.joint_value(joint, value))
-                rr.log(f"{self.name}/joint_transforms/{joint}", transform)
+                rr.log(f"{self.name}/joint_transforms/{joint}", self.joints[joint].compute_transform(value))
 
 
 def log_wrist_camera(cam: dict, width: int, height: int) -> None:

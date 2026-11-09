@@ -15,7 +15,8 @@ uv run --extra sim so101-sim
 
 The viewer opens with the arm in the home pose (every joint at 0 rad, the calibration mid stance) and a green 3 cm box
 in front of it. Open the **Control** panel on the right: there is one slider per actuator (`shoulder_pan` …
-`gripper`, in radians). Dragging a slider sets the target of that joint's position servo.
+`gripper`, in radians). Dragging a slider sets the target of that joint's position servo. Radians are the
+standard unit in so101; see [units-and-joints.md](units-and-joints.md) for how they map to the real arm's degrees.
 
 | Option | Effect |
 |---|---|
