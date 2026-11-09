@@ -10,6 +10,7 @@ this package gets its own `so101_config/`, so it is clear which URDFs and calibr
         visualization.json   camera pose and joint offsets
         arm_config.json      ports + which calibration is in use
         usb_configs/         dated port / camera detection results
+        mujoco/              MuJoCo model generated from the follower URDF (`so101.sim.model`)
 
 None of it is committed: the folder contains a .gitignore that ignores everything in it (itself included).
 
@@ -51,6 +52,9 @@ VIS_DEFAULTS_PATH = PACKAGE_DIR / "defaults" / "visualization.json"
 URDF_DIR = SO101_HOME / "urdf"
 FOLLOWER_URDF = URDF_DIR / "so101_new_calib.urdf"
 LEADER_URDF = URDF_DIR / "so101_leader_new_calib.urdf"
+
+# Generated from the follower URDF by `so101.sim.model.ensure_model()`
+MUJOCO_DIR = SO101_HOME / "mujoco"
 
 GITIGNORE = """\
 # Created by so101: local robot files (URDFs, calibration, ports, visualization) are not committed.
