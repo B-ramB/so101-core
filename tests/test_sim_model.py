@@ -7,7 +7,7 @@ Needs the `sim` extra and the URDFs: the tests use the so101_config/urdf of this
 import numpy as np
 import pytest
 
-from so101.conventions import JOINTS
+from so101.conventions import GRIPPER_LOWER, GRIPPER_UPPER, JOINTS
 from so101.paths import CONFIG_DIR_NAME, find_project_root
 
 mujoco = pytest.importorskip("mujoco")
@@ -55,6 +55,11 @@ def test_actuators_drive_their_joint_within_its_range(scene):
         actuator, joint = model.actuator(name), model.joint(name)
         assert model.actuator_trnid[actuator.id, 0] == joint.id
         np.testing.assert_allclose(model.actuator_ctrlrange[actuator.id], model.jnt_range[joint.id])
+
+
+def test_gripper_range_matches_the_conventions(model_dir):
+    model = load_model(ROBOT_XML, urdf=URDF, dest=model_dir)
+    np.testing.assert_allclose(model.jnt_range[model.joint("gripper").id], [GRIPPER_LOWER, GRIPPER_UPPER])
 
 
 def test_home_pose_has_no_self_collision(scene):

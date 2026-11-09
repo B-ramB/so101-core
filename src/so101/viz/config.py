@@ -10,7 +10,7 @@ import shutil
 import time
 from pathlib import Path
 
-from so101.conventions import real_to_model
+from so101.conventions import GRIPPER_LOWER, GRIPPER_UPPER, JointCalibration
 from so101.paths import VIS_CONFIG_PATH, VIS_DEFAULTS_PATH, ensure_home, pretty
 
 
@@ -75,6 +75,8 @@ class VisualizationConfig:
     def camera(self) -> dict:
         return self.data["wrist_camera"]
 
-    def to_model_value(self, joint: str, value: float) -> float:
-        cfg = self.data["joints"].get(joint, {})
-        return real_to_model(value, cfg.get("offset", 0.0), cfg.get("invert", False))
+    def joint_calibration(
+        self, gripper_limits: tuple[float, float] = (GRIPPER_LOWER, GRIPPER_UPPER)
+    ) -> JointCalibration:
+        """The real-arm -> model mapping from the `joints` block, as currently loaded (so it follows reloads)."""
+        return JointCalibration(self.data["joints"], gripper_limits)
