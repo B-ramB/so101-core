@@ -54,6 +54,8 @@ What the generator adds:
 - **Contact exclusions** between linked bodies, whose hulls overlap at the joints.
 - **Solver options** for grasping: 2 ms timestep, implicitfast integrator, elliptic friction cones.
 - Visual meshes in geom group 2, collision meshes in group 3 (hidden in the viewer by default).
+- **Wrist camera** `wrist_cam` on `gripper_link`, at the default `wrist_camera` pose of `visualization.json`.
+  `MujocoFollower(camera=True)` moves it to the pose in your own `so101_config/visualization.json`.
 
 From Python:
 
@@ -68,11 +70,56 @@ data.ctrl[model.actuator("gripper").id] = 0.7   # open the gripper (rad)
 mujoco.mj_step(model, data)
 ```
 
+## Control the sim from Python
+
+`so101.sim.follower.MujocoFollower` has the interface of lerobot's SO-101 follower: `connect()`, `disconnect()`,
+`is_connected`, `get_observation()`, `send_action()`, `observation_features` / `action_features`, plus `reset()`. A
+control loop written against the follower runs against the sim. It also works as a context manager.
+
+```python
+import time
+from so101.sim.follower import MujocoFollower
+
+poses = [{"shoulder_lift.pos": -0.5, "elbow_flex.pos": 0.5}, {"wrist_flex.pos": 1.0},
+         {"shoulder_pan.pos": 0.8, "gripper.pos": 1.2}, {"shoulder_pan.pos": 0.0, "wrist_flex.pos": 0.0}]
+with MujocoFollower(viewer=True) as robot:
+    for pose in poses:
+        for _ in range(60):                       # 2 s at 30 fps
+            robot.send_action(pose)
+            time.sleep(1 / 30)
+    print(robot.get_observation())
+```
+
+| | |
+|---|---|
+| Keys | the real follower's: `"shoulder_pan.pos"` … `"gripper.pos"`, and `"wrist"` for the camera image |
+| Units | **model radians** for every joint, the gripper too (see [units-and-joints.md](units-and-joints.md)) |
+| `send_action(action)` | sets the position targets, steps the physics for 1/fps s, returns the action sent |
+| Partial actions | only the joints in the action change; the others keep their target |
+| Out of range | targets are clipped to the joint range; the returned action shows the clipped value |
+| `reset()` | the home pose (every joint 0 rad), and the box back in place |
+
+Options: `MujocoFollower(fps=30, camera=False, viewer=False, scene="scene_box.xml", camera_size=(640, 480))`.
+
+- `send_action` does not wait in real time; as with the real arm, your loop does the pacing. Without `sleep` the sim
+  runs as fast as it can, which is what you want for tests or RL.
+- `viewer=True` opens MuJoCo's passive viewer and updates it after every step.
+- `camera=True` renders the wrist camera (`wrist_cam` in the model) into `obs["wrist"]`, an H×W×3 `uint8` image. Its
+  pose is `wrist_camera` from `so101_config/visualization.json`, the same one the Rerun view draws, so tune it there.
+  Headless (no display), set `MUJOCO_GL=egl`.
+
+The real follower still reports degrees and gripper percent (lerobot units). Until it gets a radians adapter, convert
+its readings with `JointPositions.from_degrees` (see [units-and-joints.md](units-and-joints.md#from-python)) before
+comparing them with the sim.
+
 ## Tests
 
-`tests/test_sim_model.py` (marker `sim`) needs the `sim` extra and `so101_config/urdf/` in this checkout; it is
-skipped otherwise. It checks that the model compiles, that the actuator names equal `JOINTS`, that 1000 steps from the
-home pose stay finite and in place, and that the arm can pick up the box.
+`tests/test_sim_model.py` and `tests/test_sim_follower.py` (marker `sim`) need the `sim` extra and
+`so101_config/urdf/` in this checkout; they are skipped otherwise. `test_sim_model.py` checks that the model compiles,
+that the actuator names equal `JOINTS`, that 1000 steps from the home pose stay finite and in place, and that the arm
+can pick up the box. `test_sim_follower.py` checks that the keys equal the real follower's, that the mid stance comes
+back within 1° after 1 s, that a 20° step on `wrist_flex` settles within 2° in 1 s, partial actions, clipping, reset
+and the camera image shape.
 
 ```bash
 uv run --extra sim pytest -m sim
