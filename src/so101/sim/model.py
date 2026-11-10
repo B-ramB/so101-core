@@ -10,12 +10,15 @@ describe:
 - visual meshes in geom group 2 and collision meshes in group 3, so the viewer shows only the visual ones
 - collision for the jaws as a stack of slab hulls (see `_slab_hulls`), so a box fits between them
 - contact exclusions between linked bodies, whose convex hulls overlap at the joints
+- the wrist camera `wrist_cam`, at the default pose of visualization.json -> wrist_camera (see `wrist_camera_pose`)
 
 The result is written to so101_config/mujoco/so101.xml. Scenes (`scene_box.xml`: floor, light and a box to pick up)
 are shipped with the package and copied next to it; they `<include>` so101.xml.
 """
 
 import itertools
+import json
+import math
 import os
 import re
 import shutil
@@ -26,11 +29,13 @@ import numpy as np
 import trimesh
 
 from so101.conventions import JOINTS
-from so101.paths import FOLLOWER_URDF, MUJOCO_DIR, PACKAGE_DIR, SO101_HOME, ensure_home, pretty
+from so101.math3d import quat_multiply, rpy_to_quat_xyzw
+from so101.paths import FOLLOWER_URDF, MUJOCO_DIR, PACKAGE_DIR, SO101_HOME, VIS_DEFAULTS_PATH, ensure_home, pretty
 
 ROBOT_XML = "so101.xml"
 DEFAULT_SCENE = "scene_box.xml"
 SCENES_DIR = PACKAGE_DIR / "sim" / "scenes"
+WRIST_CAMERA = "wrist_cam"
 
 # Home pose: every joint at 0 rad, the calibration mid stance of the "new_calib" URDF.
 HOME_QPOS = {joint: 0.0 for joint in JOINTS}
@@ -80,6 +85,24 @@ def _slab_hulls(mesh_path: Path, slabs: int) -> list[np.ndarray]:
             continue
         hulls.append(trimesh.convex.convex_hull(points).vertices)
     return hulls
+
+
+def wrist_camera_pose(cam: dict) -> tuple[list[float], list[float], float]:
+    """visualization.json -> wrist_camera as a MuJoCo camera: (pos, quat in wxyz, vertical fov in degrees).
+
+    The pose is relative to the body `cam["parent_link"]`, composed as in the Rerun view (mount rpy, then the roll
+    about the viewing axis). The Rerun camera looks along its +Z with +Y down; a MuJoCo camera looks along -Z with
+    +Y up, so a final 180° turn about X maps one onto the other.
+    """
+    mount = rpy_to_quat_xyzw(*(math.radians(a) for a in cam["rpy_deg"]))
+    view_roll = rpy_to_quat_xyzw(0.0, 0.0, math.radians(cam["roll_about_view_axis_deg"]))
+    x, y, z, w = quat_multiply(quat_multiply(mount, view_roll), [1.0, 0.0, 0.0, 0.0])
+    return [float(v) for v in cam["xyz_m"]], [w, x, y, z], float(cam["fov_y_deg"])
+
+
+def _add_wrist_camera(spec: mujoco.MjSpec, cam: dict) -> None:
+    pos, quat, fovy = wrist_camera_pose(cam)
+    spec.body(cam["parent_link"]).add_camera(name=WRIST_CAMERA, pos=pos, quat=quat, fovy=fovy)
 
 
 def _split_gripper_collisions(spec: mujoco.MjSpec, meshdir: Path, slabs: int = GRIPPER_SLABS) -> None:
@@ -137,6 +160,8 @@ def build_spec(urdf: Path = FOLLOWER_URDF) -> mujoco.MjSpec:
         if parent is not None and parent.name != "world" and body.name != "world":
             spec.add_exclude(bodyname1=parent.name, bodyname2=body.name)
 
+    _add_wrist_camera(spec, json.loads(VIS_DEFAULTS_PATH.read_text())["wrist_camera"])
+
     joints = {joint.name: joint for joint in spec.joints}
     missing = [name for name in JOINTS if name not in joints]
     if missing:
@@ -161,7 +186,7 @@ def _stale(dest: Path, urdf: Path) -> bool:
     outputs = [dest / ROBOT_XML, *(dest / scene.name for scene in SCENES_DIR.glob("*.xml"))]
     if not all(path.exists() for path in outputs):
         return True
-    inputs = [urdf, Path(__file__), *SCENES_DIR.glob("*.xml")]
+    inputs = [urdf, Path(__file__), VIS_DEFAULTS_PATH, *SCENES_DIR.glob("*.xml")]
     return max(p.stat().st_mtime for p in inputs) > min(p.stat().st_mtime for p in outputs)
 
 
