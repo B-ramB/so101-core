@@ -14,6 +14,7 @@ from so101.conventions import (
     joint_to_gripper_percent,
     model_to_real,
     real_to_model,
+    rescale_gripper,
 )
 from so101.paths import VIS_DEFAULTS_PATH
 
@@ -126,3 +127,10 @@ def test_joint_without_calibration_is_plain_degrees():
     q = JointPositions({"shoulder_lift": math.pi / 4}, JointCalibration())
     assert q.to_degrees() == pytest.approx({"shoulder_lift": 45.0})
     assert "shoulder_lift" in q and "gripper" not in q
+
+
+@pytest.mark.parametrize("percent", [0.0, 50.0, 100.0])
+def test_rescale_gripper_keeps_the_opening(percent):
+    follower, leader = (GRIPPER_LOWER, GRIPPER_UPPER), (0.0, 0.785)
+    value = gripper_percent_to_joint(percent, *follower)
+    assert rescale_gripper(value, follower, leader) == pytest.approx(gripper_percent_to_joint(percent, *leader))

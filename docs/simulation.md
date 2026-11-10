@@ -108,18 +108,42 @@ Options: `MujocoFollower(fps=30, camera=False, viewer=False, scene="scene_box.xm
   pose is `wrist_camera` from `so101_config/visualization.json`, the same one the Rerun view draws, so tune it there.
   Headless (no display), set `MUJOCO_GL=egl`.
 
-The real follower still reports degrees and gripper percent (lerobot units). Until it gets a radians adapter, convert
-its readings with `JointPositions.from_degrees` (see [units-and-joints.md](units-and-joints.md#from-python)) before
-comparing them with the sim.
+`MujocoFollower` and the real arm's `RealFollower` both implement `so101.robot.Follower`: the same methods, keys and
+units. `RealFollower` wraps lerobot's follower and converts to and from degrees at the hardware edge.
+
+## Teleoperate the sim with the leader arm
+
+```bash
+uv run --extra sim so101-teleop --sim
+```
+
+Only the leader arm has to be plugged in; `so101-teleop` reads its port and calibration from
+`so101_config/arm_config.json` as usual and does not check the follower. The follower is a
+`MujocoFollower(fps, viewer=True)`: the MuJoCo viewer opens with the sim arm, and moving the leader moves it.
+
+Rerun works as with the real arm. The follower model there shows the sim state, the leader model the leader, and the
+joint plots compare both in radians. The wrist camera image comes from the sim camera (`--no-camera` turns it off).
+`--scene so101.xml` drives the arm without floor and box.
+
+How the leader's degrees become sim radians: the leader reading goes through the same joint mapping as the real
+follower (`joints` in `so101_config/visualization.json`, see [units-and-joints.md](units-and-joints.md)). So this is
+the quickest check that the mapping is right: put the leader in the mid stance (the calibration pose) and the sim
+should look like `uv run so101-view-urdf`. If a joint is off, fix its `offset` / `invert`; the file is reloaded while
+Rerun runs. With the real follower the mapping cancels out (degrees → radians → the same degrees), so teleoperating
+the real arm is not affected by it.
+
+From Python, the loop is `so101.cli.teleop.run_teleop_loop(robot, teleop, fps, visualizer=None, max_steps=None)`.
+It takes any follower and leader with the interfaces above, so the same code drives the sim or the real arm.
 
 ## Tests
 
-`tests/test_sim_model.py` and `tests/test_sim_follower.py` (marker `sim`) need the `sim` extra and
-`so101_config/urdf/` in this checkout; they are skipped otherwise. `test_sim_model.py` checks that the model compiles,
-that the actuator names equal `JOINTS`, that 1000 steps from the home pose stay finite and in place, and that the arm
-can pick up the box. `test_sim_follower.py` checks that the keys equal the real follower's, that the mid stance comes
+`tests/test_sim_model.py`, `tests/test_sim_follower.py` and `tests/test_sim_teleop.py` (marker `sim`) need the `sim`
+extra and `so101_config/urdf/` in this checkout; they are skipped otherwise. `test_sim_model.py` checks that the
+model compiles, that the actuator names equal `JOINTS`, that 1000 steps from the home pose stay finite and in place,
+and that the arm can pick up the box. `test_sim_follower.py` checks that the keys equal the real follower's, that the mid stance comes
 back within 1° after 1 s, that a 20° step on `wrist_flex` settles within 2° in 1 s, partial actions, clipping, reset
-and the camera image shape.
+and the camera image shape. `test_sim_teleop.py` runs the teleop loop with a fake leader held in the mid stance and
+checks that the sim follows within 1°.
 
 ```bash
 uv run --extra sim pytest -m sim

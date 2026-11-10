@@ -21,6 +21,21 @@ lerobot reads and writes the real arm in its own units:
 lerobot calibration centres each joint in its range, so the pose you held during calibration (the **mid stance**)
 reads 0° / 50 %. `uv run so101-view-urdf` draws the models in that stance.
 
+In so101 these units only exist inside `RealLeader` and `RealFollower` (`so101.hardware.adapters`). They wrap
+lerobot's leader and follower, keep their keys (`"<joint>.pos"`) and convert every value with the mapping below;
+`so101.hardware.devices.make_leader` / `make_follower` return them. Everything after that works in radians: the
+teleop loop, the Rerun view (models and joint plots) and the sim (`MujocoFollower`).
+
+Real and sim share one interface, `so101.robot.Follower` / `Leader`:
+
+```
+Follower                  Leader
+├── RealFollower          └── RealLeader       real arms via lerobot, degrees <-> radians
+└── MujocoFollower                             the MuJoCo sim, radians natively
+```
+
+Write controllers against `Follower`, and they run on either.
+
 ## The conversion
 
 The real arm and the model don't agree on every zero or direction. `so101_config/visualization.json` → `joints` stores,
@@ -68,8 +83,9 @@ JointPositions({"wrist_flex": 0.5}, cal).to_degrees()    # {"wrist_flex": 28.65}
 Keys are plain joint names. lerobot dicts use `"<joint>.pos"`, so strip the suffix first.
 `to_degrees()` returns the gripper in percent, as lerobot does.
 
-`JointCalibration(gripper_limits=...)` takes another gripper range. The Rerun view uses that to draw the leader, whose
-URDF gripper range is 0 … 0.785 rad.
+`JointCalibration(gripper_limits=...)` takes another gripper range. Standard radians always use the follower's range;
+to pose the leader URDF (gripper 0 … 0.785 rad), the Rerun view rescales the gripper with
+`rescale_gripper(value, follower_limits, leader_limits)`, which keeps the opening in percent.
 
 ## Datasets
 

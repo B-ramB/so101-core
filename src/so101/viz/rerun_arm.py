@@ -1,23 +1,23 @@
 """The SO-101 URDF models and wrist camera in Rerun."""
 
 import math
+import time
 from pathlib import Path
 
 import rerun as rr
 import rerun.blueprint as rrb
 
-from so101.conventions import CAMERA_NAME, GRIPPER, JOINTS, JointPositions
+from so101.conventions import CAMERA_NAME, GRIPPER, GRIPPER_LOWER, GRIPPER_UPPER, JOINTS, rescale_gripper
 from so101.math3d import quat_multiply, rpy_to_quat_xyzw
 from so101.paths import FOLLOWER_URDF, LEADER_URDF
 from so101.viz.config import VisualizationConfig
 
 
 class ArmModel:
-    """A URDF model in Rerun whose joints follow lerobot joint positions."""
+    """A URDF model in Rerun whose joints follow joint positions in model radians."""
 
-    def __init__(self, name: str, urdf_path: Path, vis: VisualizationConfig):
+    def __init__(self, name: str, urdf_path: Path):
         self.name = name
-        self.vis = vis
         self.tree = rr.urdf.UrdfTree.from_file_path(
             urdf_path,
             entity_path_prefix=name,
@@ -39,10 +39,15 @@ class ArmModel:
             static=True,
         )
 
-    def log_positions(self, positions: dict[str, float]) -> None:
-        """Pose the model from lerobot positions: body joints in degrees, gripper in percent."""
-        q = JointPositions.from_degrees(positions, self.vis.joint_calibration(self.gripper_limits))
-        for joint, value in q.radians.items():
+    def log_positions(self, radians: dict[str, float]) -> None:
+        """Pose the model from joint positions in model radians (the so101 standard, follower gripper range).
+
+        The gripper is rescaled to this model's own gripper range, so the leader URDF (0 ... 0.785 rad) shows the
+        same opening as the follower.
+        """
+        for joint, value in radians.items():
+            if joint == GRIPPER:
+                value = rescale_gripper(value, (GRIPPER_LOWER, GRIPPER_UPPER), self.gripper_limits)
             if joint in self.joints:
                 rr.log(f"{self.name}/joint_transforms/{joint}", self.joints[joint].compute_transform(value))
 
@@ -80,12 +85,13 @@ class Visualizer:
         self.vis = vis
         self.camera_size = camera_size
         self.follower_model = self.leader_model = None
+        self._start: float | None = None
         rr.init("so101_teleoperation", spawn=True)
 
         if show_urdf:
-            self.follower_model = ArmModel("follower", FOLLOWER_URDF, vis)
+            self.follower_model = ArmModel("follower", FOLLOWER_URDF)
             if LEADER_URDF.exists():
-                self.leader_model = ArmModel("leader", LEADER_URDF, vis)
+                self.leader_model = ArmModel("leader", LEADER_URDF)
         self.apply_config()
 
         views: list = []
@@ -94,7 +100,7 @@ class Visualizer:
         side: list = []
         if camera_size:
             side.append(rrb.Spatial2DView(origin="/follower/wrist_camera/image", name="Wrist camera"))
-        side.append(rrb.TimeSeriesView(origin="/joints", name="Joints (deg / gripper %)"))
+        side.append(rrb.TimeSeriesView(origin="/joints", name="Joints (rad)"))
         views.append(rrb.Vertical(*side))
         rr.send_blueprint(rrb.Blueprint(rrb.Horizontal(*views, column_shares=[2, 1][: len(views)])))
 
@@ -106,6 +112,11 @@ class Visualizer:
             log_wrist_camera(self.vis.camera, *self.camera_size)
 
     def log_step(self, obs: dict, action: dict) -> None:
+        """Log one teleop step: follower observation and leader action, joint values in model radians."""
+        now = time.perf_counter()
+        if self._start is None:
+            self._start = now
+        rr.set_time("time", duration=now - self._start)
         if self.vis.reload_if_changed():
             self.apply_config()
 
