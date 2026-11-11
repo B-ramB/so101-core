@@ -125,6 +125,10 @@ Rerun works as with the real arm. The follower model there shows the sim state, 
 joint plots compare both in radians. The wrist camera image comes from the sim camera (`--no-camera` turns it off).
 `--scene so101.xml` drives the arm without floor and box.
 
+The sim follower is wrapped in `SafeFollower`, as the real one is: targets are clamped to the soft limits in
+`so101_config/safety.json` and change at most `max_step` per frame, so the sim shows exactly what the real arm would be
+allowed to do. See [safety.md](safety.md).
+
 How the leader's degrees become sim radians: the leader reading goes through the same joint mapping as the real
 follower (`joints` in `so101_config/visualization.json`, see [units-and-joints.md](units-and-joints.md)). So this is
 the quickest check that the mapping is right: put the leader in the mid stance (the calibration pose) and the sim

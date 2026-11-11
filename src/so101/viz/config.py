@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from so101.conventions import GRIPPER_LOWER, GRIPPER_UPPER, JointCalibration
-from so101.paths import VIS_CONFIG_PATH, VIS_DEFAULTS_PATH, ensure_home, pretty
+from so101.paths import SO101_HOME, VIS_CONFIG_PATH, VIS_DEFAULTS_PATH, ensure_home, pretty
 
 
 def merge_defaults(defaults: dict, user: dict) -> dict:
@@ -25,14 +25,14 @@ def merge_defaults(defaults: dict, user: dict) -> dict:
     return merged
 
 
-def ensure_user_config(path: Path = VIS_CONFIG_PATH) -> bool:
-    """Copy the package defaults to `path` when it does not exist yet. Returns True when it was created."""
+def ensure_user_config(path: Path = VIS_CONFIG_PATH, defaults_path: Path = VIS_DEFAULTS_PATH) -> bool:
+    """Copy the package defaults `defaults_path` to `path` when it does not exist yet. Returns True when created."""
     if path.exists():
         return False
-    if path == VIS_CONFIG_PATH:
+    if path.parent == SO101_HOME:
         ensure_home()
     path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(VIS_DEFAULTS_PATH, path)
+    shutil.copyfile(defaults_path, path)
     return True
 
 

@@ -8,6 +8,7 @@ this package gets its own `so101_config/`, so it is clear which URDFs and calibr
         urdf/                URDFs + meshes, fetched by `so101-fetch-urdfs`
         calibration/         lerobot calibration files
         visualization.json   camera pose and joint offsets
+        safety.json          soft joint limits and step limits for SafeFollower (`so101.safety`)
         arm_config.json      ports + which calibration is in use
         usb_configs/         dated port / camera detection results
         mujoco/              MuJoCo model generated from the follower URDF (`so101.sim.model`)
@@ -43,10 +44,12 @@ CONFIG_PATH = SO101_HOME / "arm_config.json"
 CALIBRATION_DIR = SO101_HOME / "calibration"
 USB_CONFIG_DIR = SO101_HOME / "usb_configs"
 VIS_CONFIG_PATH = SO101_HOME / "visualization.json"
+SAFETY_CONFIG_PATH = SO101_HOME / "safety.json"
 
 # Shipped with the package
 PACKAGE_DIR = Path(__file__).resolve().parent
 VIS_DEFAULTS_PATH = PACKAGE_DIR / "defaults" / "visualization.json"
+SAFETY_DEFAULTS_PATH = PACKAGE_DIR / "defaults" / "safety.json"
 
 # Downloaded by `so101-fetch-urdfs`
 URDF_DIR = SO101_HOME / "urdf"

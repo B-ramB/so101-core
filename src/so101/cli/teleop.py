@@ -10,6 +10,9 @@ only the leader has to be connected. The MuJoCo viewer shows the sim arm.
 Joint values pass through the loop in model radians, the so101 standard: the leader's degrees are converted with
 the joint mapping in so101_config/visualization.json, and back to degrees for the real follower.
 
+The follower (real and sim) is wrapped in `SafeFollower`: every target is clamped to the soft limits in
+so101_config/safety.json, and moves at most `max_step` per frame. See docs/safety.md.
+
 Rerun shows:
   - the follower and leader URDF models moving with the arms (the follower model shows the sim state with --sim; the
     URDFs must be in so101_config/urdf, fetch them with `uv run so101-fetch-urdfs`)
@@ -36,8 +39,9 @@ import warnings
 
 from so101.config import load_config
 from so101.hardware.devices import make_follower, make_leader
-from so101.paths import FOLLOWER_URDF, VIS_CONFIG_PATH, pretty
+from so101.paths import FOLLOWER_URDF, SAFETY_CONFIG_PATH, VIS_CONFIG_PATH, pretty
 from so101.robot import Follower, Leader
+from so101.safety import SafeFollower
 from so101.viz.config import VisualizationConfig
 
 
@@ -104,6 +108,8 @@ def main() -> None:
         robot, camera_size = make_sim_follower(args.fps, use_camera, args.scene)
     else:
         robot, camera_size = make_follower(config, use_camera, vis.joint_calibration)
+    robot = SafeFollower(robot)
+    print(f"Safety limits from {pretty(SAFETY_CONFIG_PATH)} (soft joint limits, max step per frame).")
 
     visualizer = None
     if not args.no_rerun:
