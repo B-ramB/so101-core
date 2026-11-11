@@ -9,7 +9,7 @@ leader and follower arms, built on [lerobot](https://github.com/huggingface/lero
 | `uv run so101-setup` | Detect ports and camera, calibrate the arms, write the config (offers to fetch the URDFs) |
 | `uv run so101-fetch-urdfs` | Download or update the SO-101 URDFs and meshes |
 | `uv run so101-view-urdf` | Show the URDF models in Rerun in the calibration mid stance, to align `visualization.json` (no arm needed) |
-| `uv run so101-teleop` | Teleoperate the follower with the leader, visualized in Rerun (`--no-rerun` to turn it off) |
+| `uv run so101-teleop` | Teleoperate the follower with the leader, visualized in Rerun (`--no-rerun` to turn it off, `--sim` for the MuJoCo sim) |
 | `uv run --extra sim so101-sim` | Open the follower in the MuJoCo viewer with a box to pick up (see [docs/simulation.md](docs/simulation.md)) |
 
 ### Visualization with Rerun
@@ -165,14 +165,16 @@ Reads `so101_config/arm_config.json`, lets the follower copy the leader, and ope
 
 - the follower and leader models following the real arms (needs the URDFs, see `so101-fetch-urdfs`)
 - the wrist camera as a frustum on the follower gripper, with the live image projected into the 3D view
-- the leader and follower joint positions as time series
+- the leader and follower joint positions as time series, in radians (the so101 standard, see
+  [docs/units-and-joints.md](docs/units-and-joints.md))
 
 | Option | Effect |
 |---|---|
 | `--fps 60` | Control loop frequency (default 30). |
+| `--sim` | Drive the MuJoCo sim instead of the real follower; only the leader is needed. Needs the `sim` extra: `uv run --extra sim so101-teleop --sim`. See [docs/simulation.md](docs/simulation.md#teleoperate-the-sim-with-the-leader-arm). |
 | `--no-camera` | Don't open the wrist camera. |
 | `--no-urdf` | Don't draw the URDF models in Rerun (camera and joint plots only). |
-| `--no-rerun` | Teleoperate without Rerun: no viewer window and no `visualization.json` needed. The wrist camera is not opened either, since it is only used for the visualization. |
+| `--no-rerun` | Teleoperate without Rerun: no viewer window. The wrist camera is not opened either, since it is only used for the visualization. `visualization.json` is still read for the joint mapping. |
 
 Stop with `Ctrl+C`. If an arm was replugged and its port changed, it tells you to run `so101-setup` again.
 

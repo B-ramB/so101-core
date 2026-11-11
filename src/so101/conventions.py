@@ -46,6 +46,11 @@ def joint_to_gripper_percent(value: float, lower: float, upper: float) -> float:
     return (value - lower) / (upper - lower) * 100.0
 
 
+def rescale_gripper(value: float, from_limits: tuple[float, float], to_limits: tuple[float, float]) -> float:
+    """A gripper joint value in one joint range -> the same opening (percent) in another range, e.g. follower -> leader."""
+    return gripper_percent_to_joint(joint_to_gripper_percent(value, *from_limits), *to_limits)
+
+
 @dataclass(frozen=True)
 class JointCalibration:
     """How the real arm's lerobot units map to model radians.

@@ -10,6 +10,7 @@ import pytest
 
 from so101.conventions import CAMERA_NAME, GRIPPER_LOWER, GRIPPER_UPPER, JOINTS, gripper_percent_to_joint
 from so101.paths import CONFIG_DIR_NAME, find_project_root
+from so101.robot import Follower
 
 mujoco = pytest.importorskip("mujoco")
 from so101.sim.follower import MujocoFollower
@@ -130,3 +131,7 @@ def test_needs_connect(model_dir):
     with robot:
         assert robot.is_connected
     assert not robot.is_connected
+
+
+def test_implements_the_follower_interface():
+    assert isinstance(MujocoFollower(), Follower)

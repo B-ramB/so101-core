@@ -16,7 +16,7 @@ import warnings
 
 import rerun as rr
 
-from so101.conventions import JOINTS
+from so101.conventions import JOINTS, JointPositions
 from so101.paths import FOLLOWER_URDF, LEADER_URDF, VIS_CONFIG_PATH, pretty
 from so101.viz.config import VisualizationConfig
 from so101.viz.rerun_arm import ArmModel
@@ -34,15 +34,16 @@ def main() -> None:
     vis = VisualizationConfig(VIS_CONFIG_PATH)
     rr.init("so101_urdf_view", spawn=True)
 
-    follower = ArmModel("follower", FOLLOWER_URDF, vis)
-    leader = ArmModel("leader", LEADER_URDF, vis) if LEADER_URDF.exists() else None
+    follower = ArmModel("follower", FOLLOWER_URDF)
+    leader = ArmModel("leader", LEADER_URDF) if LEADER_URDF.exists() else None
 
     def draw() -> None:
+        mid_stance = JointPositions.from_degrees(MID_STANCE, vis.joint_calibration()).radians
         if leader:
             leader.log_placement(vis.data["leader_model_offset_m"])
         for model in (follower, leader):
             if model:
-                model.log_positions(MID_STANCE)
+                model.log_positions(mid_stance)
 
     draw()
     print(f"Showing the mid stance (body joints 0 deg, gripper 50 %). Edit {pretty(VIS_CONFIG_PATH)} to align the")
