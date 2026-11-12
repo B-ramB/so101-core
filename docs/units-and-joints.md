@@ -34,7 +34,8 @@ Follower                  Leader
 └── MujocoFollower                             the MuJoCo sim, radians natively
 ```
 
-Write controllers against `Follower`, and they run on either.
+Write controllers against `Follower`, and they run on either. Wrap the follower in `SafeFollower` to clamp and
+step-limit every command; see [safety.md](safety.md).
 
 ## The conversion
 

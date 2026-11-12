@@ -5,7 +5,8 @@ Code that controls an arm (the teleop loop, a controller, the safety wrapper) is
 
     Follower                  Leader
     ├── RealFollower          └── RealLeader       real arms via lerobot (so101.hardware.adapters), deg <-> rad
-    └── MujocoFollower                             the MuJoCo sim (so101.sim.follower), radians natively
+    ├── MujocoFollower                             the MuJoCo sim (so101.sim.follower), radians natively
+    └── SafeFollower                               wraps either: validates, clamps, limits the step (so101.safety)
 
 These are Protocols: the classes don't inherit from them, they just have these members. Keys follow lerobot:
 `"<joint>.pos"` for joint positions (radians), the camera name (`"wrist"`) for an HxWx3 image.

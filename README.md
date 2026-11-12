@@ -168,6 +168,10 @@ Reads `so101_config/arm_config.json`, lets the follower copy the leader, and ope
 - the leader and follower joint positions as time series, in radians (the so101 standard, see
   [docs/units-and-joints.md](docs/units-and-joints.md))
 
+The follower is wrapped in `SafeFollower`: every target is clamped to the soft joint limits in
+`so101_config/safety.json` and moves at most `max_step` per frame. See [docs/safety.md](docs/safety.md), also for what
+it does not protect against.
+
 | Option | Effect |
 |---|---|
 | `--fps 60` | Control loop frequency (default 30). |
