@@ -43,11 +43,24 @@ uv run so101-view-urdf      # optional: align the models with the real arm
 uv run so101-teleop
 ```
 
-### Simulation (no arms needed)
+`so101-teleop` takes these flags:
+
+| Flag | Effect |
+|---|---|
+| `--hz 60` | Control loop frequency in Hz (default 30) |
+| `--sim` | Drive the MuJoCo sim instead of the real follower; only the leader is needed (see [Simulation](#simulation)) |
+| `--scene <file>` | Sim scene in `so101_config/mujoco` (with `--sim`, default `scene_box.xml`) |
+| `--no-camera` | Don't open the wrist camera |
+| `--no-urdf` | Don't draw the URDF models in Rerun (camera and joint plots only) |
+| `--no-rerun` | No Rerun viewer window; the wrist camera is not opened either |
+
+See [docs/setup.md](docs/setup.md#teleoperate-so101-teleop) for details.
+
+### Simulation 
 
 ```bash
-uv sync --extra sim
-uv run so101-fetch-urdfs
+uv sync --extra sim                             # Install MuJoCo for simulation availability
+uv run so101-fetch-urdfs                        
 uv run --extra sim so101-sim                    # MuJoCo viewer with sliders per joint
 uv run --extra sim so101-teleop --sim           # drive the sim with the real leader arm
 ```

@@ -24,7 +24,7 @@ uv run so101-setup
    `follower_arm_<YYYY-MM-DD>.json`. During calibration you hold each arm in the **middle of its range of motion**:
    this is the mid stance used by `so101-view-urdf`.
 5. Writes the ports, calibration ids and camera to `so101_config/arm_config.json`, offers to delete unused
-   calibration and USB files, and prints the equivalent `lerobot-teleoperate` command.
+   calibration and USB files, and prints the `so101-teleop` command to start teleoperating.
 
 <details>
 <summary>Manual steps (reference)</summary>
@@ -96,7 +96,7 @@ not protect against.
 
 | Option | Effect |
 |---|---|
-| `--fps 60` | Control loop frequency (default 30). |
+| `--hz 60` | Control loop frequency in Hz (default 30). |
 | `--sim` | Drive the MuJoCo sim instead of the real follower; only the leader is needed. Needs the `sim` extra: `uv run --extra sim so101-teleop --sim`. See [simulation.md](simulation.md#teleoperate-the-sim-with-the-leader-arm). |
 | `--no-camera` | Don't open the wrist camera. |
 | `--no-urdf` | Don't draw the URDF models in Rerun (camera and joint plots only). |

@@ -57,7 +57,7 @@ class FakeVisualizer:
 
 def test_forwards_each_action_and_logs_it():
     leader, follower, visualizer = FakeLeader(), FakeFollower(), FakeVisualizer()
-    steps = run_teleop_loop(follower, leader, fps=1000, visualizer=visualizer, max_steps=5)
+    steps = run_teleop_loop(follower, leader, control_hz=1000, visualizer=visualizer, max_steps=5)
     assert steps == 5
     expected = [{"wrist_flex.pos": pytest.approx(0.1 * i)} for i in range(1, 6)]
     assert follower.sent == expected
@@ -67,7 +67,7 @@ def test_forwards_each_action_and_logs_it():
 
 def test_connects_and_disconnects_both():
     leader, follower = FakeLeader(), FakeFollower()
-    run_teleop_loop(follower, leader, fps=1000, max_steps=2)
+    run_teleop_loop(follower, leader, control_hz=1000, max_steps=2)
     assert (leader.connects, leader.disconnects) == (1, 1)
     assert (follower.connects, follower.disconnects) == (1, 1)
 
@@ -75,5 +75,5 @@ def test_connects_and_disconnects_both():
 def test_disconnects_both_on_an_error():
     leader, follower = FakeLeader(), FakeFollower(fail_after=2)
     with pytest.raises(RuntimeError, match="bus error"):
-        run_teleop_loop(follower, leader, fps=1000, max_steps=10)
+        run_teleop_loop(follower, leader, control_hz=1000, max_steps=10)
     assert not leader.is_connected and not follower.is_connected

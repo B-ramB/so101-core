@@ -19,7 +19,7 @@ from so101.sim.model import HOME_QPOS, ensure_model
 pytestmark = pytest.mark.sim
 
 URDF = find_project_root() / CONFIG_DIR_NAME / "urdf" / "so101_new_calib.urdf"
-FPS = 30
+CONTROL_HZ = 30
 
 # The calibration mid stance (lerobot: body 0°, gripper 50 %) in model radians, with the default wrist_roll offset.
 MID_STANCE = {
@@ -44,7 +44,7 @@ def make_robot(model_dir):
     robots = []
 
     def make(**kwargs):
-        robot = MujocoFollower(fps=FPS, urdf=URDF, dest=model_dir, **kwargs)
+        robot = MujocoFollower(control_hz=CONTROL_HZ, urdf=URDF, dest=model_dir, **kwargs)
         robot.connect()
         robots.append(robot)
         return robot
@@ -56,7 +56,7 @@ def make_robot(model_dir):
 
 
 def hold(robot, action, seconds):
-    for _ in range(round(seconds * FPS)):
+    for _ in range(round(seconds * CONTROL_HZ)):
         robot.send_action(action)
 
 
@@ -86,7 +86,7 @@ def test_mid_stance_in_mid_stance_out(make_robot):
 def test_wrist_flex_step_settles(make_robot):
     robot = make_robot()
     robot.send_action({"wrist_flex.pos": math.radians(20)})
-    hold(robot, {}, 1.0 - 1 / FPS)
+    hold(robot, {}, 1.0 - 1 / CONTROL_HZ)
     assert robot.get_observation()["wrist_flex.pos"] == pytest.approx(math.radians(20), abs=math.radians(2))
 
 

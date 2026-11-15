@@ -20,7 +20,7 @@ from so101.sim.model import ensure_model
 pytestmark = pytest.mark.sim
 
 URDF = find_project_root() / CONFIG_DIR_NAME / "urdf" / "so101_new_calib.urdf"
-FPS = 30
+CONTROL_HZ = 30
 LIMITS = SafetyLimits.defaults()
 SCENE = "so101.xml"
 # rad: the soft limits bound the targets; the servos overshoot a full max_step move by up to ~0.085 rad (measured
@@ -37,7 +37,7 @@ def model_dir(tmp_path_factory):
 
 @pytest.fixture
 def robot(model_dir):
-    with SafeFollower(MujocoFollower(fps=FPS, scene=SCENE, urdf=URDF, dest=model_dir), LIMITS) as robot:
+    with SafeFollower(MujocoFollower(control_hz=CONTROL_HZ, scene=SCENE, urdf=URDF, dest=model_dir), LIMITS) as robot:
         yield robot
 
 
@@ -45,7 +45,7 @@ def test_far_target_moves_gradually_and_stops_at_the_soft_limit(robot):
     upper = LIMITS.joint_limits["elbow_flex"][1]
     step = LIMITS.max_step["elbow_flex"]
     previous = robot.get_observation()["elbow_flex.pos"]
-    for _ in range(2 * FPS):
+    for _ in range(2 * CONTROL_HZ):
         sent = robot.send_action({"elbow_flex.pos": 3.0})["elbow_flex.pos"]
         assert sent - previous <= step + 1e-9
         assert sent <= upper

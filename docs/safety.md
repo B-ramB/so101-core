@@ -60,7 +60,7 @@ Defaults, in radians (degrees in brackets):
 | gripper | −0.17 … 1.75 | −0.12 … 1.69 | 0.38 (≈ 20 % of the range) |
 
 The soft limits are the model's joint range minus about 0.1 rad. `max_step` 0.17 rad per command is about 300°/s at
-30 fps. It is a limit **per command**, so a faster loop moves faster.
+30 Hz. It is a limit **per command**, so a faster loop moves faster.
 
 ### Choosing your own limits
 

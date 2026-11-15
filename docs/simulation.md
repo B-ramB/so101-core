@@ -84,7 +84,7 @@ poses = [{"shoulder_lift.pos": -0.5, "elbow_flex.pos": 0.5}, {"wrist_flex.pos": 
          {"shoulder_pan.pos": 0.8, "gripper.pos": 1.2}, {"shoulder_pan.pos": 0.0, "wrist_flex.pos": 0.0}]
 with MujocoFollower(viewer=True) as robot:
     for pose in poses:
-        for _ in range(60):                       # 2 s at 30 fps
+        for _ in range(60):                       # 2 s at 30 Hz
             robot.send_action(pose)
             time.sleep(1 / 30)
     print(robot.get_observation())
@@ -94,12 +94,12 @@ with MujocoFollower(viewer=True) as robot:
 |---|---|
 | Keys | the real follower's: `"shoulder_pan.pos"` … `"gripper.pos"`, and `"wrist"` for the camera image |
 | Units | **model radians** for every joint, the gripper too (see [units-and-joints.md](units-and-joints.md)) |
-| `send_action(action)` | sets the position targets, steps the physics for 1/fps s, returns the action sent |
+| `send_action(action)` | sets the position targets, steps the physics for 1/control_hz s, returns the action sent |
 | Partial actions | only the joints in the action change; the others keep their target |
 | Out of range | targets are clipped to the joint range; the returned action shows the clipped value |
 | `reset()` | the home pose (every joint 0 rad), and the box back in place |
 
-Options: `MujocoFollower(fps=30, camera=False, viewer=False, scene="scene_box.xml", camera_size=(640, 480))`.
+Options: `MujocoFollower(control_hz=30, camera=False, viewer=False, scene="scene_box.xml", camera_size=(640, 480))`.
 
 - `send_action` does not wait in real time; as with the real arm, your loop does the pacing. Without `sleep` the sim
   runs as fast as it can, which is what you want for tests or RL.
@@ -119,7 +119,7 @@ uv run --extra sim so101-teleop --sim
 
 Only the leader arm has to be plugged in; `so101-teleop` reads its port and calibration from
 `so101_config/arm_config.json` as usual and does not check the follower. The follower is a
-`MujocoFollower(fps, viewer=True)`: the MuJoCo viewer opens with the sim arm, and moving the leader moves it.
+`MujocoFollower(control_hz, viewer=True)`: the MuJoCo viewer opens with the sim arm, and moving the leader moves it.
 
 Rerun works as with the real arm. The follower model there shows the sim state, the leader model the leader, and the
 joint plots compare both in radians. The wrist camera image comes from the sim camera (`--no-camera` turns it off).
@@ -136,7 +136,7 @@ should look like `uv run so101-view-urdf`. If a joint is off, fix its `offset` /
 Rerun runs. With the real follower the mapping cancels out (degrees → radians → the same degrees), so teleoperating
 the real arm is not affected by it.
 
-From Python, the loop is `so101.cli.teleop.run_teleop_loop(robot, teleop, fps, visualizer=None, max_steps=None)`.
+From Python, the loop is `so101.cli.teleop.run_teleop_loop(robot, teleop, control_hz, visualizer=None, max_steps=None)`.
 It takes any follower and leader with the interfaces above, so the same code drives the sim or the real arm.
 
 ## Tests

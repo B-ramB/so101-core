@@ -6,7 +6,7 @@ control loop written against one runs against the other. The joint values are **
 (see docs/units-and-joints.md): the MuJoCo model is generated from the follower URDF, so no conversion is needed.
 
     with MujocoFollower(viewer=True) as robot:
-        robot.send_action({"wrist_flex.pos": 0.5})   # only wrist_flex changes; steps the physics for 1/fps s
+        robot.send_action({"wrist_flex.pos": 0.5})   # only wrist_flex changes; steps the physics for 1/control_hz s
         robot.get_observation()                       # {"shoulder_pan.pos": 0.0, ..., "gripper.pos": 0.0}
 """
 
@@ -26,7 +26,7 @@ SUFFIX = ".pos"
 class MujocoFollower:
     """The SO-101 follower in MuJoCo. Joint positions in radians, keyed `"<joint>.pos"` as in lerobot.
 
-    fps: control rate; each `send_action` advances the simulation by 1/fps s. It does not wait in real time: like
+    control_hz: control loop frequency; each `send_action` advances the simulation by 1/control_hz s. It does not wait in real time: like
         with the real arm, the caller's loop does the pacing.
     camera: render the wrist camera into the observation as `"wrist"`, an HxWx3 uint8 image of `camera_size` (w, h).
         Its pose comes from so101_config/visualization.json -> wrist_camera, the same as in the Rerun view.
@@ -38,7 +38,7 @@ class MujocoFollower:
 
     def __init__(
         self,
-        fps: int = 30,
+        control_hz: int = 30,
         camera: bool = False,
         viewer: bool = False,
         scene: str = DEFAULT_SCENE,
@@ -46,7 +46,7 @@ class MujocoFollower:
         urdf: Path = FOLLOWER_URDF,
         dest: Path = MUJOCO_DIR,
     ):
-        self.fps = fps
+        self.control_hz = control_hz
         self.camera = camera
         self.viewer = viewer
         self.scene = scene
@@ -113,7 +113,7 @@ class MujocoFollower:
         return obs
 
     def send_action(self, action: dict) -> dict:
-        """Set the position targets (radians) of the given joints, step the physics for 1/fps s.
+        """Set the position targets (radians) of the given joints, step the physics for 1/control_hz s.
 
         A partial action only changes the joints it names; the others keep their target. Targets outside a joint's
         range are clipped to it. Returns the action actually sent, after clipping.
@@ -127,7 +127,7 @@ class MujocoFollower:
             act = self._actuators[joint]
             lower, upper = self.model.actuator_ctrlrange[act]
             self.data.ctrl[act] = sent[key] = float(np.clip(value, lower, upper))
-        steps = max(1, round(1.0 / (self.fps * self.model.opt.timestep)))
+        steps = max(1, round(1.0 / (self.control_hz * self.model.opt.timestep)))
         if self._viewer is not None:
             with self._viewer.lock():
                 mujoco.mj_step(self.model, self.data, nstep=steps)
