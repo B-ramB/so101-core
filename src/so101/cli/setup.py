@@ -9,7 +9,7 @@ Steps:
      Port permissions are fixed (`sudo chmod 666 <port>`) when needed.
   3. If needed, calibrate both arms. Files are saved as
      so101_config/calibration/leader_arm_<date>.json and follower_arm_<date>.json.
-  4. Save the result to so101_config/arm_config.json and print the teleoperate command.
+  4. Save the result to so101_config/arm_config.json and print the so101-teleop command.
 
 so101_config/ is created at the root of the project you run this in (the nearest folder with a pyproject.toml).
 The folder can be changed with the SO101_HOME environment variable.
@@ -40,31 +40,6 @@ from so101.paths import (
 from so101.prompts import ask_yes_no, header
 from so101.urdf import fetch_urdfs, urdfs_present
 from so101.viz.config import ensure_user_config
-
-
-def teleoperate_command(config: dict) -> str:
-    lines = [
-        "uv run lerobot-teleoperate",
-        f"--robot.type={FOLLOWER_TYPE}",
-        f"--robot.port={config['follower']['port']}",
-        f"--robot.id={config['follower']['id']}",
-        f"--robot.calibration_dir={CALIBRATION_DIR}",
-    ]
-    cam = config.get("camera")
-    if cam:
-        lines.append(
-            f'--robot.cameras="{{ front: {{type: opencv, index_or_path: {cam["index_or_path"]}, '
-            f'width: {cam["width"]}, height: {cam["height"]}, fps: {cam["fps"]}}}}}"'
-        )
-    lines += [
-        f"--teleop.type={LEADER_TYPE}",
-        f"--teleop.port={config['leader']['port']}",
-        f"--teleop.id={config['leader']['id']}",
-        f"--teleop.calibration_dir={CALIBRATION_DIR}",
-    ]
-    if cam:
-        lines.append("--display_data=true")
-    return " \\\n    ".join(lines)
 
 
 def offer_delete(label: str, candidates: list[Path], in_use: set[Path]) -> None:
@@ -153,7 +128,9 @@ def main() -> None:
         print(f"\nCreated {pretty(VIS_CONFIG_PATH)} from the package defaults.")
 
     print("\nStart teleoperation with:\n")
-    print(teleoperate_command(config))
+    print("    uv run so101-teleop")
+    print("\nOr drive the MuJoCo sim with the leader arm:\n")
+    print("    uv run --extra sim so101-teleop --sim")
 
 
 def run() -> None:

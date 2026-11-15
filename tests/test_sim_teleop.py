@@ -15,7 +15,7 @@ from so101.sim.model import ensure_model
 pytestmark = pytest.mark.sim
 
 URDF = find_project_root() / CONFIG_DIR_NAME / "urdf" / "so101_new_calib.urdf"
-FPS = 30
+CONTROL_HZ = 30
 MID_STANCE = {
     "shoulder_pan.pos": 0.0,
     "shoulder_lift.pos": 0.0,
@@ -49,9 +49,10 @@ class LastStep:
 def test_leader_drives_the_sim(tmp_path):
     if not URDF.exists():
         pytest.skip(f"no URDF at {URDF}; run `uv run so101-fetch-urdfs`")
-    robot = MujocoFollower(fps=FPS, urdf=URDF, dest=ensure_model(URDF, tmp_path))
+    robot = MujocoFollower(control_hz=CONTROL_HZ, urdf=URDF, dest=ensure_model(URDF, tmp_path))
     leader, last = FakeLeader(), LastStep()
-    assert run_teleop_loop(robot, leader, fps=1000, visualizer=last, max_steps=FPS) == FPS  # 1 s of sim time
+    steps = run_teleop_loop(robot, leader, control_hz=1000, visualizer=last, max_steps=CONTROL_HZ)
+    assert steps == CONTROL_HZ  # 1 s of sim time
     for key, value in MID_STANCE.items():
         assert last.obs[key] == pytest.approx(value, abs=math.radians(1)), key
     assert not robot.is_connected and not leader.is_connected

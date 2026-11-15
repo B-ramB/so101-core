@@ -26,8 +26,8 @@ Visualization uses Rerun (https://rerun.io): a viewer window is spawned automati
 teleoperate without it.
 
 Run with:
-    uv run so101-teleop            # default 30 fps
-    uv run so101-teleop --fps 60 --no-camera
+    uv run so101-teleop            # default 30 Hz
+    uv run so101-teleop --hz 60 --no-camera
     uv run so101-teleop --no-rerun
     uv run --extra sim so101-teleop --sim
 """
@@ -46,9 +46,9 @@ from so101.viz.config import VisualizationConfig
 
 
 def run_teleop_loop(
-    robot: Follower, teleop: Leader, fps: int, visualizer=None, max_steps: int | None = None
+    robot: Follower, teleop: Leader, control_hz: int, visualizer=None, max_steps: int | None = None
 ) -> int:
-    """Connect both, let the follower copy the leader at `fps` until Ctrl+C or `max_steps`, then disconnect both.
+    """Connect both, let the follower copy the leader at `control_hz` until Ctrl+C or `max_steps`, then disconnect both.
 
     `robot` is any `Follower` (`RealFollower` or `MujocoFollower`) and `teleop` any `Leader` (`RealLeader`); actions
     and observations are joint positions in model radians. `visualizer.log_step(obs, action)` is called after every step.
@@ -58,7 +58,7 @@ def run_teleop_loop(
     try:
         robot.connect()
         teleop.connect()
-        print(f"Teleoperating at {fps} fps. Press Ctrl+C to stop.")
+        print(f"Teleoperating at {control_hz} Hz. Press Ctrl+C to stop.")
         while max_steps is None or steps < max_steps:
             loop_start = time.perf_counter()
             action = teleop.get_action()
@@ -69,7 +69,7 @@ def run_teleop_loop(
             steps += 1
 
             dt = time.perf_counter() - loop_start
-            time.sleep(max(1 / fps - dt, 0.0))
+            time.sleep(max(1 / control_hz - dt, 0.0))
             print(f"\rLoop: {(time.perf_counter() - loop_start) * 1e3:5.1f} ms", end="", flush=True)
     except KeyboardInterrupt:
         print("\nStopping...")
@@ -80,18 +80,18 @@ def run_teleop_loop(
     return steps
 
 
-def make_sim_follower(fps: int, use_camera: bool, scene: str) -> tuple[Follower, tuple[int, int] | None]:
+def make_sim_follower(control_hz: int, use_camera: bool, scene: str) -> tuple[Follower, tuple[int, int] | None]:
     try:
         from so101.sim.follower import MujocoFollower
     except ImportError:
         sys.exit("MuJoCo is not installed. Run with the sim extra: `uv run --extra sim so101-teleop --sim`.")
-    robot = MujocoFollower(fps=fps, camera=use_camera, viewer=True, scene=scene)
+    robot = MujocoFollower(control_hz=control_hz, camera=use_camera, viewer=True, scene=scene)
     return robot, robot.camera_size if use_camera else None
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--fps", type=int, default=30, help="control loop frequency (default 30)")
+    parser.add_argument("--hz", type=int, default=30, help="control loop frequency in Hz (default 30)")
     parser.add_argument("--sim", action="store_true", help="drive the MuJoCo sim instead of the real follower")
     parser.add_argument("--scene", default="scene_box.xml", help="sim scene in so101_config/mujoco (with --sim)")
     parser.add_argument("--no-camera", action="store_true", help="run without the wrist camera")
@@ -105,7 +105,7 @@ def main() -> None:
     use_camera = not (args.no_camera or args.no_rerun)
     teleop = make_leader(config, vis.joint_calibration)
     if args.sim:
-        robot, camera_size = make_sim_follower(args.fps, use_camera, args.scene)
+        robot, camera_size = make_sim_follower(args.hz, use_camera, args.scene)
     else:
         robot, camera_size = make_follower(config, use_camera, vis.joint_calibration)
     robot = SafeFollower(robot)
@@ -126,7 +126,7 @@ def main() -> None:
         print("Rerun visualization is off (--no-rerun).")
 
     print("Connecting to the leader arm and the sim..." if args.sim else "Connecting to the arms...")
-    run_teleop_loop(robot, teleop, args.fps, visualizer)
+    run_teleop_loop(robot, teleop, args.hz, visualizer)
 
 
 if __name__ == "__main__":
