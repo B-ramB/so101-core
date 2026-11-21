@@ -2,7 +2,8 @@
     "_help": {
         "units": "Radians (model joint values, the so101 standard), the gripper too. Degree equivalents: 0.1 rad = 5.7 deg, 0.17 rad = 9.7 deg.",
         "joint_limits": "Soft limits per joint, [min, max] in radians. SafeFollower clamps every target into this range. The defaults are the model's joint range minus about 0.1 rad; wrist_roll is limited to well under a full turn. Tighten them to keep the arm away from the table, cables and itself (see docs/safety.md).",
-        "max_step": "Largest change of a joint target per send_action, in radians. A far target is reached over several commands. At 30 fps, 0.17 rad per command is about 300 deg/s; a faster loop moves faster. The gripper default 0.38 rad is about 20 % of its range."
+        "max_step": "Largest change of a joint target per send_action, in radians. A far target is reached over several commands. At 30 fps, 0.17 rad per command is about 300 deg/s; a faster loop moves faster. The gripper default 0.38 rad is about 20 % of its range.",
+        "workspace": "Where the arm may go, in metres in the arm's base frame (x forward, z up, the table is z = 0); r is the horizontal distance from the base's z axis. null = no limit. SafeFollower holds a command that would take the elbow, wrist, gripper frame or a jaw tip outside it. The default z_min 0.01 keeps the arm off the table (the jaws' sides can still dip up to ~5 mm). A task can narrow this workspace for itself, never widen it (see docs/safety.md)."
     },
     "joint_limits": {
         "shoulder_pan": [-1.82, 1.82],
@@ -19,5 +20,15 @@
         "wrist_flex": 0.17,
         "wrist_roll": 0.17,
         "gripper": 0.38
+    },
+    "workspace": {
+        "z_min": 0.01,
+        "z_max": null,
+        "x_min": null,
+        "x_max": null,
+        "y_min": null,
+        "y_max": null,
+        "r_min": null,
+        "r_max": null
     }
 }

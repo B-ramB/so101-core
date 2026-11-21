@@ -3,15 +3,19 @@
 Needs the `sim` extra and the URDFs, like test_sim_follower.py; the model is generated into a temp dir.
 
 The arm runs in `so101.xml` (no floor, no box): SafeFollower limits joint targets, not collisions, and in scene_box.xml
-the box stops the arm long before the soft limits.
+the box stops the arm long before the soft limits. The joint-limit tests turn the workspace off (the default z_min holds
+the elbow long before its soft limit); the workspace tests use the defaults.
 """
+
+from dataclasses import replace
 
 import numpy as np
 import pytest
 
 from so101.conventions import JOINTS
+from so101.kinematics import POINTS, ArmPoints
 from so101.paths import CONFIG_DIR_NAME, find_project_root
-from so101.safety import SafeFollower, SafetyLimits, UnsafeActionError
+from so101.safety import SafeFollower, SafetyLimits, UnsafeActionError, Workspace
 
 pytest.importorskip("mujoco")
 from so101.sim.follower import MujocoFollower
@@ -21,7 +25,8 @@ pytestmark = pytest.mark.sim
 
 URDF = find_project_root() / CONFIG_DIR_NAME / "urdf" / "so101_new_calib.urdf"
 CONTROL_HZ = 30
-LIMITS = SafetyLimits.defaults()
+LIMITS = replace(SafetyLimits.defaults(), workspace=Workspace())  # joint limits only
+DEFAULTS = SafetyLimits.defaults()  # with the default workspace (z_min = 0.01 m)
 SCENE = "so101.xml"
 # rad: the soft limits bound the targets; the servos overshoot a full max_step move by up to ~0.085 rad (measured
 # over 5 seeds). 0.1 is the margin between the default soft limits and the model's joint range.
@@ -35,9 +40,13 @@ def model_dir(tmp_path_factory):
     return ensure_model(URDF, tmp_path_factory.mktemp("mujoco"))
 
 
+def make_robot(model_dir, limits):
+    return SafeFollower(MujocoFollower(control_hz=CONTROL_HZ, scene=SCENE, urdf=URDF, dest=model_dir), limits)
+
+
 @pytest.fixture
 def robot(model_dir):
-    with SafeFollower(MujocoFollower(control_hz=CONTROL_HZ, scene=SCENE, urdf=URDF, dest=model_dir), LIMITS) as robot:
+    with make_robot(model_dir, LIMITS) as robot:
         yield robot
 
 
@@ -84,3 +93,22 @@ def test_random_actions_stay_inside_the_soft_limits(robot):
         for joint in JOINTS:
             lower, upper = LIMITS.joint_limits[joint]
             assert lower - QPOS_TOLERANCE <= obs[f"{joint}.pos"] <= upper + QPOS_TOLERANCE, joint
+
+
+def test_the_table_stops_the_gripper_just_above_it(model_dir):
+    """Bending the elbow from home swings the gripper down into the table (z = 0); the workspace holds it above."""
+    arm, z_min = ArmPoints(), DEFAULTS.workspace.z_min
+    with make_robot(model_dir, DEFAULTS) as robot:
+        for _ in range(2 * CONTROL_HZ):
+            robot.send_action({"elbow_flex.pos": 3.0})
+        assert robot.last_held
+        goal = dict(robot._goal)
+        lowest = min(p[2] - POINTS[name].radius for name, p in arm.positions(goal).items())
+        assert z_min <= lowest < z_min + 0.05  # stopped within one step of the table
+        sim = robot.robot
+        tip = sim.data.body("gripper_frame_link").xpos
+        assert tip[2] > 0.0  # the simulated gripper really is above the table, not just the targets
+
+        sent = robot.send_action({"elbow_flex.pos": 0.0})  # moving away from the table is never held
+        assert not robot.last_held
+        assert sent["elbow_flex.pos"] < goal["elbow_flex"]
