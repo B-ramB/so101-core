@@ -23,6 +23,13 @@ CI (`.github/workflows/ci.yml`) runs the same two commands on every push to `mai
 variable at import time, so the tests never read or write your real `so101_config/`. Keep it that way: don't
 import `so101` from anything that runs before `conftest.py`.
 
+An autouse fixture (`empty_so101_home`) empties that folder after every test, so each test starts without an
+`arm_config.json`, calibration files or USB configs. The folder is removed when the session ends.
+
+Code that needs the arms, a camera, the network or a terminal is replaced with `monkeypatch`: `input` / `ask_yes_no`
+for the prompts, `subprocess.run` for lerobot's calibration and `hf buckets sync`, and `detect_arm_ports`,
+`detect_camera` and `ensure_port_access` for the USB setup. Ports that must exist are temp files.
+
 ## Markers
 
 | Marker     | Meaning                                                  | Runs by default |

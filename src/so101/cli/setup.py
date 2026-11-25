@@ -18,6 +18,7 @@ Run with:
     uv run so101-setup
 """
 
+import argparse
 import json
 import subprocess
 import sys
@@ -135,6 +136,7 @@ def main() -> None:
 
 def run() -> None:
     """Entry point of `so101-setup`."""
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
     try:
         main()
     except KeyboardInterrupt:
