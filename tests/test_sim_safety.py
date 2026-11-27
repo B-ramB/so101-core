@@ -46,8 +46,10 @@ def make_robot(model_dir, limits):
 
 @pytest.fixture
 def robot(model_dir):
-    with make_robot(model_dir, LIMITS) as robot:
-        yield robot
+    robot = make_robot(model_dir, LIMITS)
+    robot.connect()
+    yield robot
+    robot.disconnect(rest=False)  # the rest move is tested on its own
 
 
 def test_far_target_moves_gradually_and_stops_at_the_soft_limit(robot):
@@ -98,7 +100,9 @@ def test_random_actions_stay_inside_the_soft_limits(robot):
 def test_the_table_stops_the_gripper_just_above_it(model_dir):
     """Bending the elbow from home swings the gripper down into the table (z = 0); the workspace holds it above."""
     arm, z_min = ArmPoints(), DEFAULTS.workspace.z_min
-    with make_robot(model_dir, DEFAULTS) as robot:
+    robot = make_robot(model_dir, DEFAULTS)
+    robot.connect()
+    try:
         for _ in range(2 * CONTROL_HZ):
             robot.send_action({"elbow_flex.pos": 3.0})
         assert robot.last_held
@@ -112,3 +116,46 @@ def test_the_table_stops_the_gripper_just_above_it(model_dir):
         sent = robot.send_action({"elbow_flex.pos": 0.0})  # moving away from the table is never held
         assert not robot.last_held
         assert sent["elbow_flex.pos"] < goal["elbow_flex"]
+    finally:
+        robot.disconnect(rest=False)
+
+
+FAR_POSES = [
+    {
+        "shoulder_pan": 1.5,
+        "shoulder_lift": 0.8,
+        "elbow_flex": -1.0,
+        "wrist_flex": -1.2,
+        "wrist_roll": 2.5,
+        "gripper": 1.5,
+    },
+    {
+        "shoulder_pan": -1.7,
+        "shoulder_lift": 0.0,
+        "elbow_flex": 0.0,
+        "wrist_flex": 1.4,
+        "wrist_roll": -2.5,
+        "gripper": 0.0,
+    },
+]
+
+
+@pytest.mark.parametrize("far", FAR_POSES)
+def test_rest_moves_the_arm_from_a_far_pose_to_the_rest_pose(model_dir, far):
+    """With the default limits (workspace too): the arm ends within the tolerance of rest_pose, and disconnects."""
+    robot = make_robot(model_dir, DEFAULTS)
+    robot.connect()
+    for _ in range(3 * CONTROL_HZ):
+        robot.send_action({f"{joint}.pos": value for joint, value in far.items()})
+    obs = robot.get_observation()
+    assert all(abs(obs[f"{joint}.pos"] - value) < 0.1 for joint, value in far.items())  # really far away
+
+    sim = robot.robot
+    assert robot.rest(hz=1000.0)  # sim time advances per command; no need to wait in real time
+    obs = robot.get_observation()
+    for joint, value in DEFAULTS.rest_pose.items():
+        assert obs[f"{joint}.pos"] == pytest.approx(value, abs=0.05), joint
+    assert not robot.last_held
+
+    robot.disconnect(rest=False)
+    assert not sim.is_connected

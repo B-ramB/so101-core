@@ -74,7 +74,7 @@ def test_cleanup_keeps_the_calibration_and_usb_config_in_use(replies):
 @pytest.fixture
 def hardware(tmp_path, monkeypatch):
     """Replace every step of so101-setup that needs the arms, the camera or the network. Returns the calls made."""
-    calls = {"calibrated": [], "fetched": 0}
+    calls = {"calibrated": [], "fetched": 0, "rest_pose": []}
     ports = {}
     for role in ("leader", "follower"):
         ports[role] = tmp_path / f"tty_{role}"
@@ -92,13 +92,14 @@ def hardware(tmp_path, monkeypatch):
     monkeypatch.setattr(setup, "fetch_urdfs", fetch_urdfs)
     monkeypatch.setattr(setup, "setup_usb", lambda day: usb)
     monkeypatch.setattr(setup, "run_calibration", run_calibration)
+    monkeypatch.setattr(setup, "setup_rest_pose", lambda config: calls["rest_pose"].append(config))
     monkeypatch.setattr("so101.hardware.ports.ensure_port_access", lambda port: None)
     calls["usb"] = usb
     return calls
 
 
 def test_fresh_setup_calibrates_both_arms_and_saves_the_config(hardware, replies, capsys):
-    replies(False)  # no existing calibration files; nothing to clean up afterwards
+    asked = replies(False, True)  # no existing calibration files; record the rest pose; nothing to clean up afterwards
     setup.main()
 
     today = date.today().isoformat()
@@ -113,6 +114,8 @@ def test_fresh_setup_calibrates_both_arms_and_saves_the_config(hardware, replies
     assert config["follower"] == {"type": "so101_follower", "port": usb["follower_port"], "id": follower_id}
     assert config["camera"] is None
     assert load_config() == config  # what setup writes is what teleop accepts
+    assert asked[1].startswith("\nRecord the follower's rest pose")
+    assert hardware["rest_pose"] == [config]
 
     out = capsys.readouterr().out
     assert "    uv run so101-teleop\n" in out
@@ -125,16 +128,17 @@ def test_setup_with_existing_calibration_files_only_sets_up_usb(hardware, replie
         CALIBRATION_DIR.mkdir(parents=True, exist_ok=True)
         (CALIBRATION_DIR / f"{role}_arm_2026-11-08.json").write_text("{}")
 
-    replies(True)  # the calibration files are already present
+    replies(True, False)  # the calibration files are already present; don't record a rest pose
     setup.main()
 
     assert hardware["calibrated"] == []
+    assert hardware["rest_pose"] == []
     assert json.loads(CONFIG_PATH.read_text())["leader"]["id"] == "leader_arm_2026-11-08"
 
 
 def test_setup_offers_to_download_missing_urdfs(hardware, replies, monkeypatch):
     monkeypatch.setattr(setup, "urdfs_present", lambda: False)
-    asked = replies(True, False)  # download: yes; existing calibration files: no
+    asked = replies(True, False, False)  # download: yes; existing calibration files: no; rest pose: no
     setup.main()
     assert hardware["fetched"] == 1
     assert asked[0].startswith("No SO-101 URDFs")

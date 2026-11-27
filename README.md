@@ -7,7 +7,7 @@ units and safety layer.
 
 | Command | What it does |
 |---|---|
-| `uv run so101-setup` | Detect ports and camera, calibrate the arms, write the config (offers to fetch the URDFs) |
+| `uv run so101-setup` | Detect ports and camera, calibrate the arms, record the follower's rest pose, write the config (offers to fetch the URDFs); `--rest-pose` records only the rest pose |
 | `uv run so101-fetch-urdfs` | Download or update the SO-101 URDFs and meshes |
 | `uv run so101-view-urdf` | Show the URDF models in Rerun in the calibration mid stance, to align `visualization.json` (no arm needed) |
 | `uv run so101-teleop` | Teleoperate the follower with the leader, visualized in Rerun (`--no-rerun` to turn it off, `--sim` for the MuJoCo sim) |

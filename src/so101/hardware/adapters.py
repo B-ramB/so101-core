@@ -84,6 +84,10 @@ class RealFollower:
         """Joint positions in radians (`"<joint>.pos"`), camera images as lerobot returns them."""
         return _to_radians(self.robot.get_observation(), self.calibration())
 
+    def disable_torque(self) -> None:
+        """Turn the torque off while staying connected: the arm goes limp and can be moved by hand."""
+        self.robot.bus.disable_torque()
+
     def send_action(self, action: dict) -> dict:
         """Send joint targets in radians; returns the action lerobot actually sent, in radians."""
         calibration = self.calibration()
