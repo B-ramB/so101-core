@@ -23,8 +23,13 @@ uv run so101-setup
 4. Calibrates the arms if needed, saved as `so101_config/calibration/leader_arm_<YYYY-MM-DD>.json` and
    `follower_arm_<YYYY-MM-DD>.json`. During calibration you hold each arm in the **middle of its range of motion**:
    this is the mid stance used by `so101-view-urdf`.
-5. Writes the ports, calibration ids and camera to `so101_config/arm_config.json`, offers to delete unused
-   calibration and USB files, and prints the `so101-teleop` command to start teleoperating.
+5. Writes the ports, calibration ids and camera to `so101_config/arm_config.json`.
+6. Records the follower's **rest pose** into `so101_config/safety.json` → `rest_pose`: the pose `so101-teleop` moves
+   the follower to before its torque goes off, so it doesn't drop. You hold the arm, its torque turns off, you fold
+   it by hand onto its base and press Enter. Offered (default yes) right after a new follower calibration; with
+   existing calibration files it is asked with default no. Run only this step with `uv run so101-setup --rest-pose`.
+   See [safety.md](safety.md#the-rest-pose-before-torque-off).
+7. Offers to delete unused calibration and USB files, and prints the `so101-teleop` command to start teleoperating.
 
 <details>
 <summary>Manual steps (reference)</summary>
@@ -102,4 +107,6 @@ not protect against.
 | `--no-urdf` | Don't draw the URDF models in Rerun (camera and joint plots only). |
 | `--no-rerun` | Teleoperate without Rerun: no viewer window. The wrist camera is not opened either, since it is only used for the visualization. `visualization.json` is still read for the joint mapping. |
 
-Stop with `Ctrl+C`. If an arm was replugged and its port changed, it tells you to run `so101-setup` again.
+Stop with `Ctrl+C`: the follower first moves to its rest pose (from `safety.json`), then its torque goes off. Press
+`Ctrl+C` again to skip the move. The same happens when teleop stops because of an error. If an arm was replugged and
+its port changed, it tells you to run `so101-setup` again.

@@ -2,8 +2,10 @@
 
 import itertools
 import json
+import logging
 import math
 import random
+import time
 from dataclasses import replace
 
 import pytest
@@ -11,7 +13,14 @@ import pytest
 from so101.conventions import JOINTS
 from so101.kinematics import POINTS, ArmPoints
 from so101.robot import Follower
-from so101.safety import SafeFollower, SafetyLimits, UnsafeActionError, Workspace, leaves_workspace
+from so101.safety import (
+    SafeFollower,
+    SafetyLimits,
+    UnsafeActionError,
+    Workspace,
+    leaves_workspace,
+    save_rest_pose,
+)
 
 STEP = 0.17
 LIMIT = 2.0
@@ -177,10 +186,11 @@ def test_load_creates_the_file_from_the_defaults(tmp_path):
 
 def test_load_fills_missing_keys_from_the_defaults(tmp_path):
     path = tmp_path / "safety.json"
-    path.write_text(json.dumps({"joint_limits": {"elbow_flex": [-1.0, 1.0]}}))
+    path.write_text(json.dumps({"joint_limits": {"elbow_flex": [-1.0, 1.58]}}))  # still around the rest pose
     limits = SafetyLimits.load(path)
     defaults = SafetyLimits.defaults()
-    assert limits.joint_limits["elbow_flex"] == (-1.0, 1.0)
+    assert limits.joint_limits["elbow_flex"] == (-1.0, 1.58)
+    assert limits.rest_pose == defaults.rest_pose
     assert limits.joint_limits["wrist_flex"] == defaults.joint_limits["wrist_flex"]
     assert limits.max_step == defaults.max_step
 
@@ -324,7 +334,7 @@ def test_load_reads_the_workspace(tmp_path):
 
 def test_load_adds_the_workspace_to_an_older_file(tmp_path):
     path = tmp_path / "safety.json"
-    path.write_text(json.dumps({"joint_limits": {"elbow_flex": [-1.0, 1.0]}}))  # written before the workspace existed
+    path.write_text(json.dumps({"joint_limits": {"elbow_flex": [-1.0, 1.58]}}))  # written before the workspace existed
     assert SafetyLimits.load(path).workspace == SafetyLimits.defaults().workspace
 
 
@@ -413,3 +423,206 @@ def test_a_task_workspace_narrows_the_one_from_the_limits(fake):
     assert lowest_point(fake.position) >= 0.1
     loose = SafeFollower(FakeFollower(), WITH_TABLE, workspace=Workspace(z_min=-1.0))
     assert loose.limits.workspace == TABLE
+
+
+# --- The rest pose: where disconnect() moves the arm before torque goes off -----------------------------------------
+
+REST = {
+    "shoulder_pan": 0.0,
+    "shoulder_lift": -1.5,
+    "elbow_flex": 1.5,
+    "wrist_flex": 0.9,
+    "wrist_roll": -1.5,
+    "gripper": 0.0,
+}
+RESTING = replace(LIMITS, rest_pose=REST)
+FAST = 1000.0  # Hz: rest() in the unit tests without waiting
+
+
+class StuckFollower(FakeFollower):
+    """Takes every command but never moves, like an arm blocked by an obstacle."""
+
+    def get_observation(self):
+        return {f"{joint}.pos": 0.0 for joint in JOINTS}
+
+
+def resting(fake, limits=RESTING):
+    robot = SafeFollower(fake, limits)
+    robot.connect()
+    return robot
+
+
+def fast_rest(monkeypatch):
+    """Make disconnect()'s rest() run without waiting between commands."""
+    monkeypatch.setattr("so101.safety.REST_HZ", FAST)
+
+
+def failing(error):
+    def raise_it():
+        raise error
+
+    return raise_it
+
+
+def test_rest_reaches_the_pose_in_steps_of_at_most_max_step(fake):
+    robot = resting(fake)
+    assert robot.rest(hz=FAST)
+    assert fake.position == pytest.approx(REST)
+    assert len(fake.sent) == math.ceil(1.5 / STEP)  # elbow_flex and shoulder_lift travel the farthest
+    for joint in JOINTS:
+        values = [0.0] + [action[f"{joint}.pos"] for action in fake.sent]
+        assert all(abs(b - a) <= STEP + 1e-12 for a, b in itertools.pairwise(values)), joint
+
+
+def test_rest_sends_nothing_when_already_at_rest():
+    fake = FakeFollower(start={joint: value + 0.04 for joint, value in REST.items()})
+    assert resting(fake).rest(tolerance=0.05, hz=FAST)
+    assert fake.sent == []
+
+
+def test_rest_goes_through_the_workspace_hold():
+    fake = FakeFollower()
+    limits = replace(RESTING, workspace=Workspace(z_min=0.15))  # the folded pose puts the gripper near the table
+    assert not resting(fake, limits).rest(timeout_s=0.05, hz=FAST)
+    arm = ArmPoints()
+    for action in fake.sent:
+        assert limits.workspace.arm_excess(arm.positions(fake.position | {k[:-4]: v for k, v in action.items()})) == 0
+
+
+def test_rest_stops_at_the_timeout_with_a_warning(caplog):
+    fake = StuckFollower()
+    robot = resting(fake)
+    start = time.monotonic()
+    with caplog.at_level(logging.WARNING, logger="so101.safety"):
+        assert robot.rest(timeout_s=0.1, hz=100) is False
+    elapsed = time.monotonic() - start
+    assert 0.1 <= elapsed < 0.5
+    assert 5 <= len(fake.sent) <= 15  # ~10 commands at 100 Hz, not a busy loop
+    assert "Did not reach the rest pose within 0.1 s" in caplog.text
+    assert "elbow_flex" in caplog.text
+
+
+def test_rest_without_a_rest_pose_does_nothing(safe, fake):
+    assert safe.rest(hz=FAST) is False
+    assert fake.sent == []
+
+
+def test_rest_before_connect_raises(fake):
+    with pytest.raises(RuntimeError, match="connect"):
+        SafeFollower(fake, RESTING).rest()
+
+
+def test_disconnect_moves_to_rest_then_disconnects(fake, monkeypatch):
+    robot = resting(fake)
+    fast_rest(monkeypatch)
+    robot.disconnect()
+    assert fake.sent and fake.position == pytest.approx(REST)
+    assert not fake.is_connected
+
+
+def test_disconnect_without_rest_skips_the_move(fake):
+    robot = resting(fake)
+    robot.disconnect(rest=False)
+    assert fake.sent == []
+    assert not fake.is_connected
+
+
+def test_a_failing_bus_is_logged_and_the_robot_still_disconnects(fake, caplog):
+    robot = resting(fake)
+    fake.get_observation = failing(ConnectionError("no status packet"))
+    with caplog.at_level(logging.ERROR, logger="so101.safety"):
+        robot.disconnect()
+    assert not fake.is_connected
+    assert "Could not move to the rest pose (ConnectionError: no status packet)" in caplog.text
+
+
+def test_ctrl_c_during_the_rest_move_still_disconnects(fake):
+    robot = resting(fake)
+    fake.get_observation = failing(KeyboardInterrupt())
+    with pytest.raises(KeyboardInterrupt):
+        robot.disconnect()
+    assert not fake.is_connected
+
+
+def test_context_manager_rests_on_exit(fake, monkeypatch):
+    fast_rest(monkeypatch)
+    with SafeFollower(fake, RESTING):
+        pass
+    assert fake.position == pytest.approx(REST)
+    assert not fake.is_connected
+
+
+def test_default_rest_pose_is_inside_the_limits_and_the_workspace():
+    limits = SafetyLimits.defaults()
+    assert set(limits.rest_pose) == set(JOINTS)
+    assert limits.workspace.arm_excess(ArmPoints().positions(limits.rest_pose)) == 0.0
+
+
+@pytest.mark.parametrize(
+    ("pose", "match"),
+    [
+        ({joint: 0.0 for joint in JOINTS if joint != "gripper"}, "missing joints \\['gripper'\\]"),
+        (REST | {"elbow": 0.0}, "unknown joints \\['elbow'\\]"),
+        (REST | {"elbow_flex": 2.5}, "rest_pose.elbow_flex: 2.5 is outside joint_limits.elbow_flex"),
+        (REST | {"gripper": float("nan")}, "rest_pose.gripper: expected a finite number"),
+        (REST | {"gripper": "0"}, "rest_pose.gripper: expected a finite number"),
+    ],
+)
+def test_limits_reject_a_bad_rest_pose(pose, match):
+    with pytest.raises(ValueError, match=match):
+        replace(LIMITS, rest_pose=pose)
+
+
+def test_limits_reject_a_rest_pose_that_is_not_a_mapping():
+    with pytest.raises(TypeError, match="rest_pose: expected"):
+        replace(LIMITS, rest_pose=[0.0] * 6)
+
+
+@pytest.mark.parametrize(
+    "user",
+    [
+        {"rest_pose": {"shoulder_pan": 0.0}},  # not filled from the defaults: a pose is used as a whole
+        {"rest_pose": {joint: 0.0 for joint in JOINTS} | {"elbow_flex": 3.0}},
+        {"joint_limits": {"elbow_flex": [-1.0, 1.0]}},  # the default rest pose (elbow 1.55) is now outside
+    ],
+)
+def test_load_rejects_a_bad_rest_pose_naming_the_file(tmp_path, user):
+    path = tmp_path / "safety.json"
+    path.write_text(json.dumps(user))
+    with pytest.raises(ValueError, match="Invalid safety limits in .*safety.json: rest_pose"):
+        SafetyLimits.load(path)
+
+
+def test_load_reads_the_rest_pose(tmp_path):
+    path = tmp_path / "safety.json"
+    path.write_text(json.dumps({"rest_pose": REST}))
+    assert SafetyLimits.load(path).rest_pose == REST
+
+
+def test_a_task_workspace_keeps_the_rest_pose():
+    assert RESTING.with_workspace(Workspace(z_min=0.05)).rest_pose == REST
+
+
+def test_save_rest_pose_stores_it_and_keeps_the_other_settings(tmp_path):
+    path = tmp_path / "safety.json"
+    path.write_text(json.dumps({"max_step": {"gripper": 0.2}}))
+    measured = REST | {"wrist_flex": 0.91234}
+    stored, moved = save_rest_pose(measured, path)
+    assert stored == REST | {"wrist_flex": 0.912} and moved == []
+    data = json.loads(path.read_text())
+    assert data["max_step"] == {"gripper": 0.2}
+    assert SafetyLimits.load(path).rest_pose == stored
+
+
+def test_save_rest_pose_moves_joints_outside_the_soft_limits_inside(tmp_path):
+    path = tmp_path / "safety.json"
+    lower = SafetyLimits.load(path).joint_limits["shoulder_lift"][0]
+    stored, moved = save_rest_pose(REST | {"shoulder_lift": -1.745}, path)  # on the mechanical stop
+    assert moved == ["shoulder_lift"]
+    assert stored["shoulder_lift"] == pytest.approx(lower + 0.02)
+    assert SafetyLimits.load(path).rest_pose == stored
+
+
+def test_save_rest_pose_rejects_a_missing_joint(tmp_path):
+    with pytest.raises(KeyError):
+        save_rest_pose({"shoulder_pan": 0.0}, tmp_path / "safety.json")

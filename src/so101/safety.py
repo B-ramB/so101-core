@@ -11,6 +11,9 @@ Joint values are model radians, the so101 standard (see docs/units-and-joints.md
 
 A task can narrow the workspace for itself, never widen it: `SafeFollower(robot, workspace=Workspace(z_min=0.05))`.
 
+`disconnect()` first moves the arm to `rest_pose` (`rest()`, through the same clamp and step limit) and only then turns
+the torque off, so the real arm doesn't drop.
+
 The limits come from so101_config/safety.json, created from the package defaults (so101/defaults/safety.json) on
 first use. See docs/safety.md for what this does and does not protect against.
 
@@ -38,6 +41,11 @@ WARN_INTERVAL_S = 1.0
 # m: how much "further outside the workspace" still counts as no worse. The URDF's rounded angles (3.14159 for pi) tilt
 # the axes a little, so e.g. panning under the table changes the excess by ~0.2 µm.
 WORKSPACE_TOLERANCE = 1e-6
+# Commands per second while moving to the rest pose. With the default max_step of 0.17 rad that is at most ~1.7 rad/s
+# (~100 deg/s); every joint gets there within the default 5 s timeout from anywhere inside the soft limits.
+REST_HZ = 10.0
+# rad: how far inside the soft limits `save_rest_pose` stores a measured joint that is outside them.
+REST_MARGIN = 0.02
 
 log = logging.getLogger(__name__)
 
@@ -156,12 +164,14 @@ def leaves_workspace(
 
 @dataclass(frozen=True)
 class SafetyLimits:
-    """Soft joint limits and the largest change per command, both in radians, for every joint in `JOINTS`, and the
-    Cartesian `workspace` the arm must stay in (unbounded by default)."""
+    """Soft joint limits and the largest change per command, both in radians, for every joint in `JOINTS`, the
+    Cartesian `workspace` the arm must stay in (unbounded by default), and the `rest_pose` {joint: radians} that
+    `SafeFollower.disconnect()` moves to before the torque goes off (None: disconnect without moving)."""
 
     joint_limits: dict[str, tuple[float, float]]
     max_step: dict[str, float]
     workspace: Workspace = Workspace()
+    rest_pose: dict[str, float] | None = None
 
     def __post_init__(self):
         for name, block in (("joint_limits", self.joint_limits), ("max_step", self.max_step)):
@@ -185,11 +195,31 @@ class SafetyLimits:
             raise TypeError(f"workspace: expected a Workspace, got {type(self.workspace).__name__}")
         object.__setattr__(self, "joint_limits", limits)
         object.__setattr__(self, "max_step", steps)
+        if self.rest_pose is not None:
+            object.__setattr__(self, "rest_pose", self._checked_rest_pose(self.rest_pose))
+
+    def _checked_rest_pose(self, pose) -> dict[str, float]:
+        if not isinstance(pose, Mapping):
+            raise TypeError(f"rest_pose: expected {{joint: radians}}, got {pose!r}")
+        if set(pose) != set(JOINTS):
+            missing, unknown = set(JOINTS) - set(pose), set(pose) - set(JOINTS)
+            raise ValueError(f"rest_pose: missing joints {sorted(missing)}, unknown joints {sorted(unknown)}")
+        checked = {}
+        for joint in JOINTS:
+            value = pose[joint]
+            if not _finite(value):
+                raise ValueError(f"rest_pose.{joint}: expected a finite number, got {value!r}")
+            lower, upper = self.joint_limits[joint]
+            if not lower <= value <= upper:
+                raise ValueError(f"rest_pose.{joint}: {value} is outside joint_limits.{joint} [{lower}, {upper}]")
+            checked[joint] = float(value)
+        return checked
 
     @classmethod
     def from_dict(cls, data: dict) -> "SafetyLimits":
         workspace = Workspace.from_dict(data.get("workspace") or {})
-        return cls(dict(data["joint_limits"]), dict(data["max_step"]), workspace)
+        rest_pose = data.get("rest_pose")
+        return cls(dict(data["joint_limits"]), dict(data["max_step"]), workspace, rest_pose)
 
     def with_workspace(self, workspace: Workspace | None) -> "SafetyLimits":
         """These limits with the workspace narrowed to `workspace` as well (`Workspace.tightened`); never widened."""
@@ -204,15 +234,50 @@ class SafetyLimits:
     def load(cls, path: Path = SAFETY_CONFIG_PATH) -> "SafetyLimits":
         """Your limits file on top of the package defaults; the file is created from the defaults when missing.
 
-        Keys missing from the file are filled from the defaults. Invalid limits raise a ValueError naming the file.
+        Keys missing from the file are filled from the defaults. `rest_pose` is the exception: it is one pose, so a
+        `rest_pose` in your file is used as a whole and must name every joint. Invalid limits raise a ValueError naming
+        the file.
         """
         if ensure_user_config(path, SAFETY_DEFAULTS_PATH):
             print(f"Created {pretty(path)} from the package defaults.")
         defaults = json.loads(SAFETY_DEFAULTS_PATH.read_text())
         try:
-            return cls.from_dict(merge_defaults(defaults, json.loads(path.read_text())))
+            user = json.loads(path.read_text())
+            merged = merge_defaults(defaults, user)
+            if "rest_pose" in user:
+                merged["rest_pose"] = user["rest_pose"]
+            return cls.from_dict(merged)
         except (ValueError, TypeError) as e:
-            raise ValueError(f"Invalid safety limits in {pretty(path)}: {e}") from e
+            hint = ""
+            if str(e).startswith("rest_pose"):
+                hint = " Set a rest_pose inside your joint_limits there, or record one with `uv run so101-setup --rest-pose`."
+            raise ValueError(f"Invalid safety limits in {pretty(path)}: {e}.{hint}") from e
+
+
+def save_rest_pose(pose: Mapping[str, float], path: Path = SAFETY_CONFIG_PATH) -> tuple[dict[str, float], list[str]]:
+    """Store `pose` ({joint: radians}, e.g. measured on the real arm) as `rest_pose` in the safety file `path`.
+
+    A joint outside the file's `joint_limits` (a folded arm often rests on a mechanical stop, beyond the soft limits)
+    is stored `REST_MARGIN` inside them. Returns the stored pose and the joints that had to be moved inwards. The file
+    is created from the package defaults when missing; its other settings are kept.
+    """
+    limits = SafetyLimits.load(path)
+    stored, moved = {}, []
+    for joint in JOINTS:
+        value = float(pose[joint])
+        if not math.isfinite(value):
+            raise ValueError(f"rest_pose.{joint}: expected a finite number, got {value!r}")
+        value = round(value, 3)
+        lower, upper = limits.joint_limits[joint]
+        if not lower <= value <= upper:
+            value = round(min(max(value, lower + REST_MARGIN), upper - REST_MARGIN), 3)
+            moved.append(joint)
+        stored[joint] = value
+    data = json.loads(path.read_text())
+    data["rest_pose"] = stored
+    replace(limits, rest_pose=stored)  # validates before anything is written
+    path.write_text(json.dumps(data, indent=4) + "\n")
+    return stored, moved
 
 
 class SafeFollower:
@@ -225,6 +290,8 @@ class SafeFollower:
 
     `last_clipped` maps `"<joint>.pos"` -> (requested, sent) for the joints the last command changed. `last_held` is
     True when the last command was held because it would have left the workspace.
+
+    `disconnect()` moves the arm to `limits.rest_pose` first (`rest()`); `disconnect(rest=False)` skips that.
     """
 
     def __init__(self, robot, limits: SafetyLimits | None = None, workspace: Workspace | None = None):
@@ -257,9 +324,51 @@ class SafeFollower:
         self.last_clipped = {}
         self.last_held = False
 
-    def disconnect(self) -> None:
-        self._goal = None
-        self.robot.disconnect()
+    def disconnect(self, rest: bool = True) -> None:
+        """Move to the rest pose (`rest()`, unless `rest=False`), then disconnect the robot, which turns torque off.
+
+        The robot is disconnected even when the move fails (e.g. the bus itself failed): the error is logged.
+        """
+        try:
+            if rest and self._goal is not None:
+                try:
+                    self.rest()
+                except Exception as e:  # noqa: BLE001 - disconnecting matters more than the reason
+                    log.error("Could not move to the rest pose (%s: %s); disconnecting anyway.", type(e).__name__, e)
+        finally:
+            self._goal = None
+            self.robot.disconnect()
+
+    def rest(self, timeout_s: float = 5.0, tolerance: float = 0.05, hz: float | None = None) -> bool:
+        """Move to `limits.rest_pose`, a pose where the arm can stay with torque off. Returns True when it got there.
+
+        Sends the rest pose through the same clamp, step limit and workspace hold as `send_action`, `hz` times per
+        second (default `REST_HZ`), until every observed joint is within `tolerance` (rad) of it. After `timeout_s` it
+        stops and logs a warning. Without a rest pose (`limits.rest_pose` is None) it does nothing and returns False.
+        """
+        if self._goal is None:
+            raise RuntimeError("SafeFollower is not connected; call connect() first.")
+        pose = self.limits.rest_pose
+        if pose is None:
+            log.info("No rest_pose in the safety limits; not moving before torque off.")
+            return False
+        period = 1.0 / (hz or REST_HZ)
+        action = {f"{joint}{SUFFIX}": value for joint, value in pose.items()}
+        deadline = time.monotonic() + timeout_s
+        while True:
+            start = time.monotonic()
+            obs = self.robot.get_observation()
+            errors = {joint: abs(float(obs[f"{joint}{SUFFIX}"]) - value) for joint, value in pose.items()}
+            off = {joint: error for joint, error in errors.items() if error > tolerance}
+            if not off:
+                return True
+            if start >= deadline:
+                details = ", ".join(f"{joint} {error:.3f}" for joint, error in off.items())
+                reason = " (held at the workspace boundary)" if self.last_held else ""
+                log.warning("Did not reach the rest pose within %.1f s%s; off by (rad): %s", timeout_s, reason, details)
+                return False
+            self._send(action)
+            time.sleep(max(period - (time.monotonic() - start), 0.0))
 
     def get_observation(self) -> dict[str, Any]:
         return self.robot.get_observation()
@@ -271,6 +380,12 @@ class SafeFollower:
         the joints in this action keep their previous targets: steps are small, so that is a safe place to stop.
         Raises UnsafeActionError (and sends nothing) for an unknown key or a value that is not a finite number.
         """
+        sent = self._send(action)
+        self._warn_if_clipped()
+        return sent
+
+    def _send(self, action: dict[str, float]) -> dict[str, float]:
+        """`send_action` without the warning: `rest()` is limited on every step by design."""
         if self._goal is None:
             raise RuntimeError("SafeFollower is not connected; call connect() first.")
         requested = self._validate(action)
@@ -297,7 +412,6 @@ class SafeFollower:
                 self._goal[joint] = float(value)
             if joint in requested and not math.isclose(value, requested[joint], abs_tol=1e-9):
                 self.last_clipped[key] = (requested[joint], float(value))
-        self._warn_if_clipped()
         return sent
 
     def _validate(self, action: dict) -> dict[str, float]:

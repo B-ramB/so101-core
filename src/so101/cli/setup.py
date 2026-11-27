@@ -9,13 +9,17 @@ Steps:
      Port permissions are fixed (`sudo chmod 666 <port>`) when needed.
   3. If needed, calibrate both arms. Files are saved as
      so101_config/calibration/leader_arm_<date>.json and follower_arm_<date>.json.
-  4. Save the result to so101_config/arm_config.json and print the so101-teleop command.
+  4. Save the result to so101_config/arm_config.json.
+  5. Record the follower's rest pose (fold it by hand) into so101_config/safety.json -> rest_pose: where the arm
+     moves before its torque goes off. Offered by default after a new follower calibration.
+  6. Print the so101-teleop command.
 
 so101_config/ is created at the root of the project you run this in (the nearest folder with a pyproject.toml).
 The folder can be changed with the SO101_HOME environment variable.
 
 Run with:
     uv run so101-setup
+    uv run so101-setup --rest-pose     # only record the follower's rest pose (needs arm_config.json)
 """
 
 import argparse
@@ -25,13 +29,15 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from so101.config import save_config
+from so101.config import load_config, save_config
 from so101.conventions import FOLLOWER_TYPE, LEADER_TYPE
 from so101.hardware.calibration import run_calibration, select_existing_calibration
+from so101.hardware.rest_pose import setup_rest_pose
 from so101.hardware.usb_config import setup_usb, usb_config_path
 from so101.paths import (
     CALIBRATION_DIR,
     CONFIG_PATH,
+    SAFETY_CONFIG_PATH,
     URDF_DIR,
     USB_CONFIG_DIR,
     VIS_CONFIG_PATH,
@@ -108,7 +114,8 @@ def main() -> None:
     if leader_id is None:
         leader_id = f"leader_arm_{today}"
         run_calibration("leader", leader_port, leader_id)
-    if follower_id is None:
+    calibrated_follower = follower_id is None
+    if calibrated_follower:
         follower_id = f"follower_arm_{today}"
         run_calibration("follower", follower_port, follower_id)
 
@@ -123,10 +130,18 @@ def main() -> None:
     print(f"Configuration saved to {pretty(CONFIG_PATH)}:\n")
     print(json.dumps(config, indent=4))
 
-    cleanup_unused_files(leader_id, follower_id, today)
-
     if ensure_user_config():
         print(f"\nCreated {pretty(VIS_CONFIG_PATH)} from the package defaults.")
+
+    if ask_yes_no(
+        f"\nRecord the follower's rest pose (where it moves before torque off) into {pretty(SAFETY_CONFIG_PATH)}?",
+        default=calibrated_follower,
+    ):
+        setup_rest_pose(config)
+    else:
+        print("Skipping. Record it later with `uv run so101-setup --rest-pose`.")
+
+    cleanup_unused_files(leader_id, follower_id, today)
 
     print("\nStart teleoperation with:\n")
     print("    uv run so101-teleop")
@@ -136,9 +151,16 @@ def main() -> None:
 
 def run() -> None:
     """Entry point of `so101-setup`."""
-    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "--rest-pose", action="store_true", help="only record the follower's rest pose into so101_config/safety.json"
+    )
+    args = parser.parse_args()
     try:
-        main()
+        if args.rest_pose:
+            setup_rest_pose(load_config(roles=("follower",)))
+        else:
+            main()
     except KeyboardInterrupt:
         print("\nAborted.")
         sys.exit(1)

@@ -11,7 +11,8 @@ Joint values pass through the loop in model radians, the so101 standard: the lea
 the joint mapping in so101_config/visualization.json, and back to degrees for the real follower.
 
 The follower (real and sim) is wrapped in `SafeFollower`: every target is clamped to the soft limits in
-so101_config/safety.json, and moves at most `max_step` per frame. See docs/safety.md.
+so101_config/safety.json, and moves at most `max_step` per frame. When teleop stops (Ctrl+C or an error), the
+follower first moves to the `rest_pose` in safety.json, then its torque goes off. See docs/safety.md.
 
 Rerun shows:
   - the follower and leader URDF models moving with the arms (the follower model shows the sim state with --sim; the
@@ -50,6 +51,9 @@ def run_teleop_loop(
 ) -> int:
     """Connect both, let the follower copy the leader at `control_hz` until Ctrl+C or `max_steps`, then disconnect both.
 
+    Ctrl+C and errors (e.g. an `UnsafeActionError`) end the loop the same way: a `SafeFollower` moves to its rest pose
+    before its torque goes off (`SafeFollower.disconnect`), and the error is raised after that.
+
     `robot` is any `Follower` (`RealFollower` or `MujocoFollower`) and `teleop` any `Leader` (`RealLeader`); actions
     and observations are joint positions in model radians. `visualizer.log_step(obs, action)` is called after every step.
     Returns the number of steps run.
@@ -74,10 +78,23 @@ def run_teleop_loop(
     except KeyboardInterrupt:
         print("\nStopping...")
     finally:
-        for device in (teleop, robot):
-            if device.is_connected:
-                device.disconnect()
+        disconnect(teleop, robot)
     return steps
+
+
+def disconnect(teleop: Leader, robot: Follower) -> None:
+    """Disconnect the leader, then the follower; a `SafeFollower` first moves to its rest pose (Ctrl+C skips that)."""
+    try:
+        if teleop.is_connected:
+            teleop.disconnect()
+    finally:
+        if robot.is_connected:
+            if isinstance(robot, SafeFollower):
+                print("\nMoving the follower to its rest pose before turning torque off (Ctrl+C to skip)...")
+            try:
+                robot.disconnect()
+            except KeyboardInterrupt:
+                print("Skipped the rest pose; torque is off.")
 
 
 def make_sim_follower(control_hz: int, use_camera: bool, scene: str) -> tuple[Follower, tuple[int, int] | None]:

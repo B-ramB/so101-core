@@ -26,6 +26,7 @@ This was checked in lerobot 0.6.1, the version this repo uses.
 | Software clamp to the calibrated range | ❌ Not in degrees mode (lerobot's default `use_degrees=True`). `_unnormalize` clamps only the ±100 and 0–100 modes | ✅ clamp to the soft limits |
 | Per-command step limit (`max_relative_target`) | ❌ Exists but off by default (`None`) | ✅ `max_step` |
 | NaN, inf or a wrong joint name | ❌ Fails deep in the motor-bus code. The `finally: disconnect()` then disables torque and the arm drops | ✅ Rejected before anything is sent |
+| Torque off at disconnect (end of teleop, Ctrl+C, an error) | ❌ The arm drops | ✅ Moves to `rest_pose` first |
 | Soft limits tighter than the calibration (table, cables, self-collision) | ❌ | ✅ `joint_limits` |
 | Keeping the gripper, wrist and elbow above the table | ❌ | ✅ `workspace` |
 | The same protection in the sim | ❌ | ✅ |
@@ -49,8 +50,9 @@ On each `send_action`, in this order:
 ## The limits: `so101_config/safety.json`
 
 The file is created from the package defaults (`src/so101/defaults/safety.json`) the first time a `SafeFollower` is made.
-Keys missing from your file are filled in from the defaults. Invalid limits (min ≥ max, a missing or unknown joint,
-`max_step` ≤ 0) are rejected at load with an error that names the file. The file is read at startup, so restart
+Keys missing from your file are filled in from the defaults (except within `rest_pose`, see
+[below](#the-rest-pose-before-torque-off)). Invalid limits (min ≥ max, a missing or unknown joint, `max_step` ≤ 0, a
+`rest_pose` outside `joint_limits`) are rejected at load with an error that names the file. The file is read at startup, so restart
 `so101-teleop` after editing it.
 
 Defaults, in radians (degrees in brackets):
@@ -128,11 +130,73 @@ robot.limits.workspace     # safety.json's workspace tightened by the task's: ea
 (e.g. an RL policy's action → target mapping) can apply the same rule itself with `so101.safety.leaves_workspace`,
 so `SafeFollower` never has to hold its commands.
 
+## The rest pose before torque off
+
+`disconnect()` turns the servos' torque off, so the real arm drops. `SafeFollower.disconnect()` therefore first moves
+the arm to `rest_pose` in `safety.json`, a pose where it can stay without torque, and only then disconnects:
+
+```json
+"rest_pose": {"shoulder_pan": 0.0, "shoulder_lift": -1.6, "elbow_flex": 1.55,
+              "wrist_flex": 0.9, "wrist_roll": -1.571, "gripper": 0.0}
+```
+
+The default is the arm folded onto its base: upper arm back, forearm forward, wrist bent down, the jaws a few
+centimetres above the table. In the sim it stays there with torque off, settling up to ~0.15 rad onto its stops.
+Every joint must be present and inside `joint_limits`. Unlike the other blocks, a `rest_pose` in your file is used as
+a whole, not filled in joint by joint from the defaults: a pose mixed from two arms is not a pose. If you tighten
+`joint_limits` so that the default rest pose falls outside them, the file is rejected until you set your own.
+
+`so101-teleop` always ends this way: at the end, after `Ctrl+C`, and after an error such as an `UnsafeActionError`.
+Press `Ctrl+C` again to skip the move. In your own code:
+
+```python
+robot.rest()                    # move there now; True when every joint is within 0.05 rad
+robot.disconnect()              # rest(), then torque off: also what `with SafeFollower(...)` does on exit
+robot.disconnect(rest=False)    # torque off right away
+```
+
+`rest(timeout_s=5.0, tolerance=0.05)` sends `rest_pose` through the normal `send_action` path, so the soft limits,
+`max_step` and the workspace hold apply. It sends 10 commands per second (`so101.safety.REST_HZ`): with the default
+`max_step` that is at most 1.7 rad/s (≈ 100°/s), and every joint arrives within the 5 s timeout. It stops when
+every observed joint is within `tolerance` of the pose, or at the timeout with a warning naming the joints that are
+off (e.g. the arm is blocked, or the workspace holds it). If the move itself fails, e.g. because the bus failed, the
+error is logged and the arm is still disconnected.
+
+### Measuring your own rest pose
+
+The default fits a typical calibration; your arm, calibration and joint mapping can differ. Measure it on your arm:
+
+**With `so101-setup`** (easiest). Right after the follower calibration, or any time with:
+
+```bash
+uv run so101-setup --rest-pose
+```
+
+Hold the follower: its torque turns off. Fold it by hand onto its base into a pose where it stays put, let go, press
+Enter. The joints are read through the same joint mapping as teleop (`visualization.json` → `joints`) and written to
+`safety.json` → `rest_pose`. A folded arm often rests on a mechanical stop, beyond the soft limits; those joints are
+stored 0.02 rad inside them, and the arm settles the last bit itself when its torque goes off. It warns when the pose
+is outside the `workspace` (the move would be held before it arrives).
+
+**With teleop and Rerun**, as in [Choosing your own limits](#choosing-your-own-limits):
+
+1. Run `uv run so101-teleop` (or `--sim` first, to try it out).
+2. With the leader, fold the follower slowly onto its base, into a pose where it would stay without torque.
+3. Read each follower joint's value (in radians) from the joint plots in Rerun.
+4. Write them into `so101_config/safety.json` → `rest_pose` (every joint, inside `joint_limits`), and restart.
+5. Stop with `Ctrl+C` and check that the arm folds there and stays put when the torque goes off.
+
+If you change the joint mapping in `visualization.json` later, measure the rest pose again: the same radians then
+mean a different real pose.
+
 ## What it does not protect against
 
 - **Collisions** with objects, people or the arm itself. The `workspace` covers the table (and walls, as box bounds),
   for the checked points only: a part of the arm between them can still touch an obstacle. A held command stops the
   arm; it does not slide it along the boundary. Self-collision and obstacle checks are not implemented.
 - **Speed over time.** `max_step` is per command, not per second.
-- **Torque off at the end.** `disconnect()` disables torque, so the real arm **drops**. Support it, or move it to a
-  rest pose first. This also happens when `so101-teleop` stops because of an error, including an `UnsafeActionError`.
+- **Torque off at the end.** `disconnect()` moves the arm to `rest_pose` first (see
+  [above](#the-rest-pose-before-torque-off)), but the torque still goes off afterwards. If the bus fails, the move
+  fails too and the arm drops. A rest pose that is not stable without torque, a move blocked by an obstacle (it
+  times out), `Ctrl+C` during the move, or `disconnect(rest=False)` also leave the arm unsupported. A follower used
+  without `SafeFollower` drops as before.
